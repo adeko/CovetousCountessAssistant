@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          # Optional: basic semver-ish check
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "Tag does not look like a version (expected vX.Y.Z or vX.Y.Z-prerelease)"
+            exit 1
+          fi
+          UNIX_TIMESTAMP="$(date +%s)"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "unix_timestamp=$UNIX_TIMESTAMP" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          UNIX_TIMESTAMP: ${{ steps.version.outputs.unix_timestamp }}
+        run: |
+          set -euo pipefail
+
+          ADDON_NAME="CovetousCountessAssistant"
+          BUILD_DIR="build"
+          OUTPUT="${ADDON_NAME}-v${VERSION}.zip"
+
+          rm -rf "$BUILD_DIR"
+          mkdir -p "$BUILD_DIR"
+
+          cp -R "$ADDON_NAME" "$BUILD_DIR/"
+
+          # Safer, more explicit replacements
+          sed -i \
+            -e "s/__BUILD_VERSION__/${VERSION}/g" \
+            -e "s/__UNIX_TIMESTAMP__/${UNIX_TIMESTAMP}/g" \
+            "$BUILD_DIR/$ADDON_NAME/CovetousCountessAssistant.addon"
+
+          sed -i \
+            -e "s/__BUILD_VERSION__/${VERSION}/g" \
+            "$BUILD_DIR/$ADDON_NAME/CovetousCountessAssistant.lua"
+
+          # Quick sanity check that placeholders were replaced
+          if grep -q '__BUILD_VERSION__\|__UNIX_TIMESTAMP__' \
+               "$BUILD_DIR/$ADDON_NAME/CovetousCountessAssistant.addon" \
+               "$BUILD_DIR/$ADDON_NAME/CovetousCountessAssistant.lua"; then
+            echo "ERROR: placeholders still present after substitution"
+            exit 1
+          fi
+
+          cd "$BUILD_DIR"
+          zip -qr "../$OUTPUT" "$ADDON_NAME"
+          cd ..
+
+          echo "Created:"
+          ls -lh "$OUTPUT"
+          unzip -l "$OUTPUT"   # optional: show contents for the log
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: CovetousCountessAssistant-v${{ steps.version.outputs.version }}.zip
+          generate_release_notes: true
+          # Optional extras:
+          # draft: false
+          # prerelease: ${{ contains(github.ref, '-') }}
