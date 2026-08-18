@@ -2,7 +2,7 @@ local ADDON_TITLE   = "Covetous Countess Assistant"
 local ADDON_NAME    = "CovetousCountessAssistant"
 local ADDON_AUTHOR  = "@AlexD"
 local ADDON_VERSION = "__BUILD_VERSION__"
-local ADDON_WEBSITE = "https://www.esoui.com/downloads/infoXXXX-CovetousCountessAssistant.html"
+local ADDON_WEBSITE = "https://www.esoui.com/downloads/info4778-CovetousCountessAssistant.html"
 local SV_VERSION    = 1
 
 local SLASH_TRACK_COUNTESS = "/ccatrackcountess" -- toggle Covetous Countess tracking
