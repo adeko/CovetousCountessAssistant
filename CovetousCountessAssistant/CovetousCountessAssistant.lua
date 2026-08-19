@@ -20,6 +20,7 @@ local GetItemLinkItemTagInfo        = GetItemLinkItemTagInfo
 local ZO_ColorDef                   = ZO_ColorDef
 local ZO_ScrollList_RefreshVisible  = ZO_ScrollList_RefreshVisible
 local zo_strformat                  = zo_strformat
+local zo_callLater                  = zo_callLater
 local GetString                     = GetString
 local ZO_SavedVars                  = ZO_SavedVars
 local tinsert                       = table.insert
@@ -101,12 +102,40 @@ local QUEST_ID = {
     [6107] = true, -- A Matter of Leisure
 }
 
+-- Unlike the Countess, each Crow (Bursar of Tributes) quest always wants a
+-- fixed, known category -- no fuzzy text matching required.
+local CROW_QUEST_CATEGORY = {
+    [6072] = "Respect",  -- A Matter of Respect
+    [6106] = "Tributes", -- A Matter of Tributes
+    [6107] = "Leisure",  -- A Matter of Leisure
+}
+
 local FENCE_ICON                = "/esoui/art/icons/servicemappins/servicepin_fence.dds"
 local FENCE_ICON_COLOR_WHITE    = ZO_ColorDef:New("FFFFFF")
 local FENCE_ICON_COLOR_ORANGE   = ZO_ColorDef:New("FF6600")
 local FENCE_ICON_COLOR_RED      = ZO_ColorDef:New("FF3333")
+local FENCE_ICON_COLOR_GREEN    = ZO_ColorDef:New("00FF00")
 
 local USED_ICONS = { [FENCE_ICON] = true, }
+
+local TARGET_NAMES = {
+    ["Tip Board"] = true, -- en
+    ["Tip Board"] = true, -- de
+}
+
+local SKIP_RESPONSES          = {
+    -- en
+    ["<Keep reading.>"]               = true,
+    ["<Make a note of the request.>"] = true,
+    -- de
+    ["<Weiterlesen.>"]                = true,
+    ["<Notiz aufnehmen.>"]            = true,
+}
+
+local COUNTESS_RESPONSES      = {
+    ["<Read the contract.>"] = true, -- en
+    ["<Der Vertrag lesen.>"] = true, -- de
+}
 
 ----------------------------------------------------------------------
 -- Localization cache
@@ -134,15 +163,30 @@ ua	Ukrainian
 local STRINGS = {}
 
 local function CacheLocalizedStrings()
-    STRINGS.OPTION_TRACK_COUNTESS         = GetString(SI_COVETOUSCOUNTESSASSISTANT_OPTION_TRACK_COUNTESS)
-    STRINGS.OPTION_TRACK_COUNTESS_TOOLTIP = GetString(SI_COVETOUSCOUNTESSASSISTANT_OPTION_TRACK_COUNTESS_TOOLTIP)
-    STRINGS.OPTION_TRACK_CROW             = GetString(SI_COVETOUSCOUNTESSASSISTANT_OPTION_TRACK_CROW)
-    STRINGS.OPTION_TRACK_CROW_TOOLTIP     = GetString(SI_COVETOUSCOUNTESSASSISTANT_OPTION_TRACK_CROW_TOOLTIP)
-    STRINGS.SETTINGS                      = GetString(SI_COVETOUSCOUNTESSASSISTANT_OPTION_SETTINGS)
-    STRINGS.MSG_COUNTESS_ON               = GetString(SI_COVETOUSCOUNTESSASSISTANT_MSG_COUNTESS_ON)
-    STRINGS.MSG_COUNTESS_OFF              = GetString(SI_COVETOUSCOUNTESSASSISTANT_MSG_COUNTESS_OFF)
-    STRINGS.MSG_CROW_ON                   = GetString(SI_COVETOUSCOUNTESSASSISTANT_MSG_CROW_ON)
-    STRINGS.MSG_CROW_OFF                  = GetString(SI_COVETOUSCOUNTESSASSISTANT_MSG_CROW_OFF)
+    STRINGS.OPTION_TRACK_COUNTESS 
+        = GetString(SI_COVETOUSCOUNTESSASSISTANT_OPTION_TRACK_COUNTESS)
+    STRINGS.OPTION_TRACK_COUNTESS_TOOLTIP 
+        = GetString(SI_COVETOUSCOUNTESSASSISTANT_OPTION_TRACK_COUNTESS_TOOLTIP)
+    STRINGS.OPTION_TRACK_CROW 
+        = GetString(SI_COVETOUSCOUNTESSASSISTANT_OPTION_TRACK_CROW)
+    STRINGS.OPTION_TRACK_CROW_TOOLTIP 
+        = GetString(SI_COVETOUSCOUNTESSASSISTANT_OPTION_TRACK_CROW_TOOLTIP)
+    STRINGS.OPTION_AUTOSKIP_TIPBOARD 
+        = GetString(SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD)
+    STRINGS.OPTION_AUTOSKIP_TIPBOARD_TOOLTIP 
+        = GetString(SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_TOOLTIP)
+    STRINGS.OPTION_AUTOSKIP_TIPBOARD_WARNING 
+        = GetString(SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_WARNING)
+    STRINGS.SETTINGS 
+        = GetString(SI_COVETOUSCOUNTESSASSISTANT_OPTION_SETTINGS)
+    STRINGS.MSG_COUNTESS_ON 
+        = GetString(SI_COVETOUSCOUNTESSASSISTANT_MSG_COUNTESS_ON)
+    STRINGS.MSG_COUNTESS_OFF 
+        = GetString(SI_COVETOUSCOUNTESSASSISTANT_MSG_COUNTESS_OFF)
+    STRINGS.MSG_CROW_ON 
+        = GetString(SI_COVETOUSCOUNTESSASSISTANT_MSG_CROW_ON)
+    STRINGS.MSG_CROW_OFF 
+        = GetString(SI_COVETOUSCOUNTESSASSISTANT_MSG_CROW_OFF)
 end
 
 ----------------------------------------------------------------------
@@ -167,8 +211,9 @@ end
 
 local function InitSettings()
     local defaults = {
-        trackCountess = true,   -- track Covetous Countess treasure tags
-        trackCrow     = false,  -- track Bursar of Tributes (Crow Store) treasure tags
+        trackCountess    = true,   -- track Covetous Countess treasure tags
+        trackCrow        = false,  -- track Bursar of Tributes (Crow Store) treasure tags
+        autoSkipTipBoard = false,  -- auto-close Tip Board offers that aren't the Countess
     }
 
     local SV = ZO_SavedVars:NewAccountWide(ADDON_NAME .. "_SV", SV_VERSION, "Settings", defaults)
@@ -210,6 +255,15 @@ local function InitSettings()
             end,
             default = defaults.trackCrow,
         },
+        {
+            type    = "checkbox",
+            name    = STRINGS.OPTION_AUTOSKIP_TIPBOARD,
+            tooltip = STRINGS.OPTION_AUTOSKIP_TIPBOARD_TOOLTIP,
+            warning = STRINGS.OPTION_AUTOSKIP_TIPBOARD_WARNING,
+            getFunc = function() return SV.autoSkipTipBoard end,
+            setFunc = function(v) SV.autoSkipTipBoard = v end,
+            default = defaults.autoSkipTipBoard,
+        },
     }
 
     LibAddonMenu2:RegisterAddonPanel(ADDON_NAME .. "Panel", panelData)
@@ -224,6 +278,9 @@ local COUNTESS_TAGS_SET = {} -- flat set
 local CROW_TAGS         = {}
 local CROW_TAGS_SET     = {}
 local COMBINED_TAGS_SET = {}
+
+local ACTIVE_QUESTS_ID   = {}
+local ACTIVE_QUESTS_TAGS = {}
 
 -- itemLink -> tags table | false (no matching tags). Tags never change mid-session.
 local tagCache          = {}
@@ -346,14 +403,28 @@ ZO_PostHook("ZO_UpdateStatusControlIcons", function(inventorySlot, slotData)
     local statusControl = inventorySlot:GetNamedChild("StatusTexture")
     if not statusControl or not statusControl.iconData then return end
 
+    local questTags = ACTIVE_QUESTS_TAGS[QUEST_NAME_ID["The Covetous Countess"]]
+    local matchesQuest = false
+    if questTags and slotData.bagId and slotData.slotIndex then
+        local itemLink = GetItemLink(slotData.bagId, slotData.slotIndex)
+        local itemTags = itemLink and GetTreasureTags(itemLink)
+        if itemTags then
+            for _, tag in ipairs(itemTags) do
+                if questTags[tag] then
+                    matchesQuest = true
+                    break
+                end
+            end
+        end
+    end
+
     local tinted = false
-    -- TODO: Not implemented yet
-    -- for _, data in ipairs(statusControl.iconData) do
-    --     if data.iconTexture == FENCE_ICON and data.iconTint ~= FENCE_ICON_COLOR_RED then
-    --         data.iconTint = FENCE_ICON_COLOR_RED
-    --         tinted = true
-    --     end
-    -- end
+    for _, data in ipairs(statusControl.iconData) do
+        if data.iconTexture == FENCE_ICON then
+            data.iconTint = matchesQuest and FENCE_ICON_COLOR_GREEN or FENCE_ICON_COLOR_WHITE
+            tinted = true
+        end
+    end
 
     if tinted then
         statusControl:SetHidden(true)
@@ -380,6 +451,263 @@ function CCA.CheckTreasureTagsLoaded()
     end
     return CountEntries(COUNTESS_TAGS_SET) == expectedCountess
         and CountEntries(CROW_TAGS_SET) == expectedCrow
+end
+
+----------------------------------------------------------------------
+-- Quests Tracking
+----------------------------------------------------------------------
+
+-- N-gram fuzzy matching
+-- lua 5.1 customized
+local string_lower  = zo_strlower -- string.lower
+local string_sub    = zo_strsub   -- string.sub
+local string_len    = string.len
+local string_byte   = string.byte
+
+-- Language → n-gram size (based on linguistic characteristics)
+-- Bigrams  for CJKT (characters ≈ syllables / concepts, no spaces)
+-- Trigrams for Latin / Cyrillic / agglutinative (longer words + morphology)
+local NGRAM_SIZE    = {
+    zh = 2, -- Chinese Simplified
+    jp = 2, -- Japanese
+    kr = 2, -- Korean
+    th = 2, -- Thai
+    -- everything else defaults to 3
+    de = 3,
+    en = 3,
+    es = 3,
+    fr = 3,
+    ru = 3,
+    br = 3,
+    it = 3,
+    pl = 3,
+    tr = 3,
+    ua = 3,
+}
+
+local DEFAULT_NGRAM = 3
+
+-- Multi-byte safe character iterator (UTF-8)
+local function string_to_chars(str)
+    local chars = {}
+    local i = 1
+    str = string_lower(str)
+    local len = string_len(str)
+
+    while i <= len do
+        local byte = string_byte(str, i)
+        local char_bytes = 1
+        if byte >= 0xc0 and byte <= 0xdf then
+            char_bytes = 2
+        elseif byte >= 0xe0 and byte <= 0xef then
+            char_bytes = 3
+        elseif byte >= 0xf0 and byte <= 0xf7 then
+            char_bytes = 4
+        end
+
+        local char = string_sub(str, i, i + char_bytes - 1)
+        table.insert(chars, char)
+        i = i + char_bytes
+    end
+    return chars
+end
+
+-- Generate a set of unique n-grams (n = 2 or 3)
+local function get_ngrams(chars, n)
+    local ngrams = {}
+    if #chars < n then
+        return ngrams -- too short → empty set
+    end
+    for i = 1, #chars - n + 1 do
+        local gram = ""
+        for j = 0, n - 1 do
+            gram = gram .. chars[i + j]
+        end
+        ngrams[gram] = true
+    end
+    return ngrams
+end
+
+-- Score = fraction of the group's n-grams that appear anywhere in the quest text
+-- (coverage of the short group inside the long text)
+local function score_group_match(group_text, quest_text, n)
+    local g_chars = string_to_chars(group_text)
+    local q_chars = string_to_chars(quest_text)
+
+    local group_ngrams = get_ngrams(g_chars, n)
+    local quest_ngrams = get_ngrams(q_chars, n)
+
+    local intersection = 0
+    local total = 0
+
+    for gram in pairs(group_ngrams) do
+        total = total + 1
+        if quest_ngrams[gram] then
+            intersection = intersection + 1
+        end
+    end
+
+    if total == 0 then
+        return 0
+    end
+    return intersection / total
+end
+
+-- Main entry point
+-- quest_text   = the long text to search in
+-- word_groups  = { [category] = "tag1 tag2 tag3 ...", ... }
+-- lang         = language code ("ru", "zh", "en", "jp" …)
+-- returns best category name and its score, or nil, 0
+local function FindMatchingGroup(quest_text, word_groups, lang)
+    if not quest_text or quest_text == "" then
+        return nil, 0
+    end
+
+    local n = NGRAM_SIZE[lang] or DEFAULT_NGRAM
+    local best_group_id = nil
+    local max_score = -1
+
+    for group_id, group_string in pairs(word_groups) do
+        local score = score_group_match(group_string, quest_text, n)
+        d(string.format("DEBUG: %s: %.2f", group_id, score))
+        if score > max_score then
+            max_score = score
+            best_group_id = group_id
+        end
+    end
+
+    -- Soft floor against pure noise (safe because exactly one real match is guaranteed)
+    if max_score >= 0.20 then
+        return best_group_id, max_score
+    end
+
+    return nil, 0
+end
+
+-- Convert source[category][tag] = true
+-- into  word_groups[category] = "tag1 tag2 tag3 ..."
+local function PrepareWordGroups(source)
+    local word_groups = {}
+
+    for category, tags in pairs(source) do
+        local parts = {}
+        for tag, _ in pairs(tags) do -- _ is always true
+            table.insert(parts, tag)
+        end
+        -- Join with a space (harmless for CJK, useful for Latin/Cyrillic)
+        word_groups[category] = table.concat(parts, " ")
+    end
+
+    return word_groups
+end
+
+-- Find the best matching group for the given quest
+local function FindBestGroup(questText, sourceTags)
+    local currentLanguage = GetCVar("Language.2")
+    if NGRAM_SIZE[currentLanguage] == nil then
+        d("[" .. ADDON_NAME .. "] Language not found.")
+        return nil, 0
+    end
+    d("[" .. ADDON_NAME .. "] Language key found! N-Gram size is: " .. NGRAM_SIZE[currentLanguage])
+    local wordGroups = PrepareWordGroups(sourceTags)
+    return FindMatchingGroup(questText, wordGroups, currentLanguage)
+end
+
+-- Start (or refresh) tracking for a quest
+local function ActivateQuestTracking(questId, journalIndex)
+    ACTIVE_QUESTS_ID[questId] = true
+
+    if questId == QUEST_NAME_ID["The Covetous Countess"] then
+        local _, _, activeStepText = GetJournalQuestInfo(journalIndex)
+        local best_group_id, max_score = FindBestGroup(activeStepText, COUNTESS_TAGS)
+
+        if best_group_id then
+            d("[" .. ADDON_NAME .. "] Found a match for this quest: " .. best_group_id .. ", score: " .. max_score)
+            ACTIVE_QUESTS_TAGS[questId] = COUNTESS_TAGS[best_group_id]
+        elseif not ACTIVE_QUESTS_TAGS[questId] then
+            d("[" .. ADDON_NAME .. "] Could not find a matching group for this quest.")
+        end
+    elseif CROW_QUEST_CATEGORY[questId] then
+        -- Fixed category, no fuzzy matching needed.
+        ACTIVE_QUESTS_TAGS[questId] = CROW_TAGS[CROW_QUEST_CATEGORY[questId]]
+    end
+
+    RefreshInventoryIcons()
+end
+
+-- Stop tracking a quest
+local function DeactivateQuestTracking(questId)
+    if not questId or not ACTIVE_QUESTS_ID[questId] then return end
+
+    ACTIVE_QUESTS_ID[questId] = nil
+    ACTIVE_QUESTS_TAGS[questId] = nil
+
+    RefreshInventoryIcons()
+end
+
+-- On load / zone-in: pick up any relevant quests already in the journal
+local function ScanActiveQuests()
+    local numQuests = GetNumJournalQuests()
+    for journalIndex = 1, numQuests do
+        if IsValidQuestIndex(journalIndex) then
+            local questId = GetJournalQuestId(journalIndex)
+            if QUEST_ID[questId] then
+                ActivateQuestTracking(questId, journalIndex)
+            end
+        end
+    end
+end
+
+local function OnQuestAdded(eventCode, journalIndex, questName, objectiveName)
+    local questId = GetJournalQuestId(journalIndex)
+    if QUEST_ID[questId] then
+        ActivateQuestTracking(questId, journalIndex)
+    end
+end
+
+local function OnQuestAdvanced(eventCode, journalIndex, questName, objectiveName)
+    local questId = GetJournalQuestId(journalIndex)
+    if QUEST_ID[questId] then
+        ActivateQuestTracking(questId, journalIndex)
+    end
+end
+
+local function OnQuestRemoved(eventCode, isCompleted, journalIndex, questName, zoneIndex, poiIndex, questId)
+    if QUEST_ID[questId] then
+        DeactivateQuestTracking(questId)
+    end
+end
+
+local function IsTargetBoard()
+    return TARGET_NAMES[GetUnitName("interact") or ""] ~= nil
+end
+
+local function OnQuestOffered(eventCode)
+    -- Fires when an NPC dialogue offer window opens up for a new quest.
+    if not IsTargetBoard() then return end
+
+    local _, response = GetOfferedQuestInfo()
+
+    if COUNTESS_RESPONSES[response] then
+        d("[" .. ADDON_NAME .. "] Covetous Countess offer detected!")
+        return
+    end
+
+    if not CCA.SV.autoSkipTipBoard then return end
+
+    if SKIP_RESPONSES[response] then
+        zo_callLater(function()
+            local interaction = SYSTEMS:GetObjectBasedOnCurrentScene(ZO_INTERACTION_SYSTEM_NAME)
+            if interaction then interaction:CloseChatter() end
+        end, 0)
+    end
+end
+
+local function RegisterQuestEvents()
+    EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_QUEST_ADDED, OnQuestAdded)
+    EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_QUEST_ADVANCED, OnQuestAdvanced)
+    EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_QUEST_OFFERED, OnQuestOffered)
+    EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_QUEST_REMOVED, OnQuestRemoved)
 end
 
 ----------------------------------------------------------------------
@@ -433,6 +761,9 @@ SLASH_COMMANDS[SLASH_TRACK_STATUS]   = ShowTrackingStatus
 ----------------------------------------------------------------------
 local function OnPlayerActivated()
     EM:UnregisterForEvent(ADDON_NAME, EVENT_PLAYER_ACTIVATED)
+
+    RegisterQuestEvents()
+    ScanActiveQuests()
     if not CCA.CheckTreasureTagsLoaded() then
         d("[" .. ADDON_NAME .. "] Missing treasure tags — please report to the author.")
     end
