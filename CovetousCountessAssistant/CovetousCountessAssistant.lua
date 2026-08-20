@@ -5,6 +5,7 @@ local ADDON_VERSION = "__BUILD_VERSION__"
 local ADDON_WEBSITE = "https://www.esoui.com/downloads/info4778-CovetousCountessAssistant.html"
 local SV_VERSION    = 1
 
+local SLASH_TRACK_SETTINGS = "/ccatracksettings" -- opens addon settings
 local SLASH_TRACK_COUNTESS = "/ccatrackcountess" -- toggle Covetous Countess tracking
 local SLASH_TRACK_CROW     = "/ccatrackcrow"     -- toggle Bursar of Tributes tracking
 local SLASH_TRACK_STATUS   = "/ccatrackstatus"   -- show addon status
@@ -116,23 +117,74 @@ local FENCE_ICON_COLOR_GREEN    = ZO_ColorDef:New("00FF00")
 
 local USED_ICONS = { [FENCE_ICON] = true, }
 
-local TARGET_NAMES = {
-    ["Tip Board"] = true, -- en
-    ["Tip Board TODO"] = true, -- de
-}
-
-local SKIP_RESPONSES          = {
+local TARGET_NAMES           = {
     -- en
-    ["<Keep reading.>"]               = true,
-    ["<Make a note of the request.>"] = true,
+    ["Tip Board"] = true,
     -- de
-    ["<Weiterlesen.>"]                = true,
-    ["<Notiz aufnehmen.>"]            = true,
+    ["Brett für Aufträge"] = true,
+    -- fr
+    ["Tableau des tuyaux"] = true,
+    -- es
+    ["Tablón de informes"] = true,
+    -- ru
+    ["Доска объявлений"] = true,
+    -- jp
+    ["ジョブボード"] = true,
+    -- zh
+    ["提示板"] = true,
 }
 
-local COUNTESS_RESPONSES      = {
-    ["<Read the contract.>"] = true, -- en
-    ["<Der Vertrag lesen.>"] = true, -- de
+local SKIP_RESPONSES         = {
+    -- en
+    ["<Keep reading.>"] = true,
+    ["<Make a note of the request.>"] = true,
+
+    -- de
+    ["<Weiterlesen.>"] = true,
+    ["<Diese Anfrage vermerken.>"] = true,
+
+    -- fr
+    ["<Continuer à lire.>"] = true,
+    ["<Prendre note de la requête.>"] = true,
+
+    -- es
+    ["<Continuar leyendo.>"] = true,
+    ["<Apuntar la petición.>"] = true,
+
+    -- ru
+    ["<Продолжить чтение.>"] = true,
+    ["<Записать подробности.>"] = true,
+
+    -- jp
+    ["<続きを読む>"] = true,
+    ["<要求をメモする>"] = true,
+
+    -- zh
+    ["<继续阅读。>"] = true,
+    ["<记下任务要求。>"] = true,
+}
+
+local COUNTESS_RESPONSES     = {
+    -- en
+    ["<Read the contract.>"] = true,
+
+    -- de
+    ["<Den Kontrakt lesen.>"] = true,
+
+    -- fr
+    ["<Lire le contrat.>"] = true,
+
+    -- es
+    ["<Leer el contrato.>"] = true,
+
+    -- ru
+    ["<Прочесть контракт.>"] = true,
+
+    -- jp
+    ["<契約書を読む>"] = true,
+
+    -- zh
+    ["<阅读契约>"] = true,
 }
 
 ----------------------------------------------------------------------
@@ -227,6 +279,7 @@ local function InitSettings()
         author               = ADDON_AUTHOR,
         version              = ADDON_VERSION,
         website              = ADDON_WEBSITE,
+        slashCommand         = SLASH_TRACK_SETTINGS,
         registerForRefresh   = true,
         registerForDefaults  = true,
     }
@@ -405,7 +458,6 @@ local function UpdateStatusControlIcons()
         local statusControl = inventorySlot:GetNamedChild("StatusTexture")
         if not statusControl or not statusControl.iconData then return end
 
-
         local matchesQuest = false
         for _, questTags in pairs(ACTIVE_QUESTS_TAGS) do
             if questTags and slotData.bagId and slotData.slotIndex then
@@ -474,8 +526,8 @@ local string_byte   = string.byte
 -- Bigrams  for CJKT (characters ≈ syllables / concepts, no spaces)
 -- Trigrams for Latin / Cyrillic / agglutinative (longer words + morphology)
 local NGRAM_SIZE    = {
-    zh = 2, -- Chinese Simplified
-    jp = 2, -- Japanese
+    zh = 1, -- Chinese Simplified
+    jp = 1, -- Japanese
     kr = 2, -- Korean
     th = 2, -- Thai
     -- everything else defaults to 3
@@ -689,7 +741,15 @@ local function IsTargetBoard()
 end
 
 local function OnQuestOffered(eventCode)
-    -- Fires when an NPC dialogue offer window opens up for a new quest.
+    if not CCA.SV.autoSkipTipBoard then return end
+
+    -- debug
+    -- local _, response = GetOfferedQuestInfo()
+    -- local name = GetUnitName("interact") or "unknown"
+    -- local message = name .. "\n" .. response
+    -- LocalDebugTools.ShowDebug(message)
+    -- if true then return end
+
     if not IsTargetBoard() then return end
 
     local _, response = GetOfferedQuestInfo()
@@ -699,13 +759,9 @@ local function OnQuestOffered(eventCode)
         return
     end
 
-    if not CCA.SV.autoSkipTipBoard then return end
-
     if SKIP_RESPONSES[response] then
-        zo_callLater(function()
-            local interaction = SYSTEMS:GetObjectBasedOnCurrentScene(ZO_INTERACTION_SYSTEM_NAME)
-            if interaction then interaction:CloseChatter() end
-        end, 0)
+        local interaction = SYSTEMS:GetObjectBasedOnCurrentScene(ZO_INTERACTION_SYSTEM_NAME)
+        if interaction then interaction:CloseChatter() end
     end
 end
 
