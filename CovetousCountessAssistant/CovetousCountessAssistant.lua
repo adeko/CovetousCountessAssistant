@@ -9,8 +9,7 @@ local SLASH_TRACK_COUNTESS = "/ccatrackcountess" -- toggle Covetous Countess tra
 local SLASH_TRACK_CROW     = "/ccatrackcrow"     -- toggle Bursar of Tributes tracking
 local SLASH_TRACK_STATUS   = "/ccatrackstatus"   -- show addon status
 
-CovetousCountessAssistant = CovetousCountessAssistant or {}
-local CCA                 = CovetousCountessAssistant
+local CCA = {}
 
 -- Cached ESO globals / functions
 local EM                            = EVENT_MANAGER
@@ -95,6 +94,7 @@ local QUEST_NAME_ID = {
     ["A Matter of Tributes"]    = 6106,
     ["A Matter of Leisure"]     = 6107,
 }
+
 local QUEST_ID = {
     [5584] = true, -- The Covetous Countess
     [6072] = true, -- A Matter of Respect
@@ -112,15 +112,13 @@ local CROW_QUEST_CATEGORY = {
 
 local FENCE_ICON                = "/esoui/art/icons/servicemappins/servicepin_fence.dds"
 local FENCE_ICON_COLOR_WHITE    = ZO_ColorDef:New("FFFFFF")
-local FENCE_ICON_COLOR_ORANGE   = ZO_ColorDef:New("FF6600")
-local FENCE_ICON_COLOR_RED      = ZO_ColorDef:New("FF3333")
 local FENCE_ICON_COLOR_GREEN    = ZO_ColorDef:New("00FF00")
 
 local USED_ICONS = { [FENCE_ICON] = true, }
 
 local TARGET_NAMES = {
     ["Tip Board"] = true, -- en
-    ["Tip Board"] = true, -- de
+    ["Tip Board TODO"] = true, -- de
 }
 
 local SKIP_RESPONSES          = {
@@ -203,8 +201,9 @@ local function RefreshInventoryIcons()
     }
     for _, invType in ipairs(types) do
         local inv = PLAYER_INVENTORY.inventories[invType]
-        if inv and inv.listView then
-            ZO_ScrollList_RefreshVisible(inv.listView)
+        local listView = inv and inv.listView
+        if listView and not listView:IsHidden() then
+            ZO_ScrollList_RefreshVisible(listView)
         end
     end
 end
@@ -359,78 +358,85 @@ end
 ----------------------------------------------------------------------
 -- Inventory icon hooks
 ----------------------------------------------------------------------
--- PreHook: inject (or strip) our icon path into additionalIcons before vanilla runs.
-ZO_PreHook("ZO_UpdateStatusControlIcons", function(inventorySlot, slotData)
-    if not slotData or not slotData.bagId or not slotData.slotIndex then
-        return false
-    end
+-- create local function to avoid globals for hooks
+local function UpdateStatusControlIcons() 
 
-    local itemLink = GetItemLink(slotData.bagId, slotData.slotIndex)
-    if not itemLink or itemLink == "" then return false end
-
-    -- Prevent stacking on repeated redraws
-    if slotData.additionalIcons then
-        for i = #slotData.additionalIcons, 1, -1 do
-            if USED_ICONS[slotData.additionalIcons[i]] then
-                tremove(slotData.additionalIcons, i)
-            end
+    -- PreHook: inject (or strip) our icon path into additionalIcons before vanilla runs.
+    ZO_PreHook("ZO_UpdateStatusControlIcons", function(inventorySlot, slotData)
+        if not slotData or not slotData.bagId or not slotData.slotIndex then
+            return false
         end
-    end
 
-    if IsTrackedTreasure(itemLink) then
-        slotData.additionalIcons = slotData.additionalIcons or {}
-        slotData.additionalIcons[#slotData.additionalIcons + 1] = FENCE_ICON
-    end
-
-    return false -- let vanilla continue
-end)
-
--- PostHook: apply tint. Vanilla AddIcon takes only the path, so tint must be
--- set on iconData after the fact. Force hide/show so single-icon rows re-read tint.
--- (See zo_multiicon.lua: each iconData entry is { iconTexture, iconTint, iconNarration }).
-ZO_PostHook("ZO_UpdateStatusControlIcons", function(inventorySlot, slotData)
-    if not slotData or not slotData.additionalIcons then return end
-
-    local hasOurs = false
-    for _, icon in ipairs(slotData.additionalIcons) do
-        if USED_ICONS[icon] then
-            hasOurs = true
-            break
-        end
-    end
-    if not hasOurs then return end
-
-    local statusControl = inventorySlot:GetNamedChild("StatusTexture")
-    if not statusControl or not statusControl.iconData then return end
-
-    local questTags = ACTIVE_QUESTS_TAGS[QUEST_NAME_ID["The Covetous Countess"]]
-    local matchesQuest = false
-    if questTags and slotData.bagId and slotData.slotIndex then
         local itemLink = GetItemLink(slotData.bagId, slotData.slotIndex)
-        local itemTags = itemLink and GetTreasureTags(itemLink)
-        if itemTags then
-            for _, tag in ipairs(itemTags) do
-                if questTags[tag] then
-                    matchesQuest = true
-                    break
+        if not itemLink or itemLink == "" then return false end
+
+        -- Prevent stacking on repeated redraws
+        if slotData.additionalIcons then
+            for i = #slotData.additionalIcons, 1, -1 do
+                if USED_ICONS[slotData.additionalIcons[i]] then
+                    tremove(slotData.additionalIcons, i)
                 end
             end
         end
-    end
 
-    local tinted = false
-    for _, data in ipairs(statusControl.iconData) do
-        if data.iconTexture == FENCE_ICON then
-            data.iconTint = matchesQuest and FENCE_ICON_COLOR_GREEN or FENCE_ICON_COLOR_WHITE
-            tinted = true
+        if IsTrackedTreasure(itemLink) then
+            slotData.additionalIcons = slotData.additionalIcons or {}
+            slotData.additionalIcons[#slotData.additionalIcons + 1] = FENCE_ICON
         end
-    end
 
-    if tinted then
-        statusControl:SetHidden(true)
-        statusControl:SetHidden(false)
-    end
-end)
+        return false -- let vanilla continue
+    end)
+
+    -- PostHook: apply tint. Vanilla AddIcon takes only the path, so tint must be
+    -- set on iconData after the fact. Force hide/show so single-icon rows re-read tint.
+    -- (See zo_multiicon.lua: each iconData entry is { iconTexture, iconTint, iconNarration }).
+    ZO_PostHook("ZO_UpdateStatusControlIcons", function(inventorySlot, slotData)
+        if not slotData or not slotData.additionalIcons then return end
+
+        local hasOurs = false
+        for _, icon in ipairs(slotData.additionalIcons) do
+            if USED_ICONS[icon] then
+                hasOurs = true
+                break
+            end
+        end
+        if not hasOurs then return end
+
+        local statusControl = inventorySlot:GetNamedChild("StatusTexture")
+        if not statusControl or not statusControl.iconData then return end
+
+
+        local matchesQuest = false
+        for _, questTags in pairs(ACTIVE_QUESTS_TAGS) do
+            if questTags and slotData.bagId and slotData.slotIndex then
+                local itemLink = GetItemLink(slotData.bagId, slotData.slotIndex)
+                local itemTags = itemLink and GetTreasureTags(itemLink)
+                if itemTags then
+                    for _, tag in ipairs(itemTags) do
+                        if questTags[tag] then
+                            matchesQuest = true
+                            break
+                        end
+                    end
+                end
+            end
+        end
+
+        local tinted = false
+        for _, data in ipairs(statusControl.iconData) do
+            if data.iconTexture == FENCE_ICON then
+                data.iconTint = matchesQuest and FENCE_ICON_COLOR_GREEN or FENCE_ICON_COLOR_WHITE
+                tinted = true
+            end
+        end
+
+        if tinted then
+            statusControl:SetHidden(true)
+            statusControl:SetHidden(false)
+        end
+    end)
+
+end
 
 ----------------------------------------------------------------------
 -- Diagnostics
@@ -441,7 +447,7 @@ local function CountEntries(t)
     return n
 end
 
-function CCA.CheckTreasureTagsLoaded()
+local function CheckTreasureTagsLoaded()
     local expectedCountess, expectedCrow = 0, 0
     for _, items in pairs(COUNTESS_DUMMY_IDS) do
         expectedCountess = expectedCountess + CountEntries(items)
@@ -704,10 +710,10 @@ local function OnQuestOffered(eventCode)
 end
 
 local function RegisterQuestEvents()
-    EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_QUEST_ADDED, OnQuestAdded)
-    EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_QUEST_ADVANCED, OnQuestAdvanced)
-    EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_QUEST_OFFERED, OnQuestOffered)
-    EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_QUEST_REMOVED, OnQuestRemoved)
+    EM:RegisterForEvent(ADDON_NAME, EVENT_QUEST_ADDED, OnQuestAdded)
+    EM:RegisterForEvent(ADDON_NAME, EVENT_QUEST_ADVANCED, OnQuestAdvanced)
+    EM:RegisterForEvent(ADDON_NAME, EVENT_QUEST_OFFERED, OnQuestOffered)
+    EM:RegisterForEvent(ADDON_NAME, EVENT_QUEST_REMOVED, OnQuestRemoved)
 end
 
 ----------------------------------------------------------------------
@@ -752,10 +758,6 @@ local function ShowTrackingStatus()
     d(string.format("[%s]\n%s\n%s", ADDON_TITLE, countess, crow))
 end
 
-SLASH_COMMANDS[SLASH_TRACK_COUNTESS] = ToggleTrackCountess
-SLASH_COMMANDS[SLASH_TRACK_CROW]     = ToggleTrackCrow
-SLASH_COMMANDS[SLASH_TRACK_STATUS]   = ShowTrackingStatus
-
 ----------------------------------------------------------------------
 -- Load
 ----------------------------------------------------------------------
@@ -764,7 +766,7 @@ local function OnPlayerActivated()
 
     RegisterQuestEvents()
     ScanActiveQuests()
-    if not CCA.CheckTreasureTagsLoaded() then
+    if not CheckTreasureTagsLoaded() then
         d("[" .. ADDON_NAME .. "] Missing treasure tags — please report to the author.")
     end
 end
@@ -777,6 +779,11 @@ local function OnLoaded(_, name)
     CacheLocalizedStrings()
     InitSettings()
     BuildTreasureTags()
+    UpdateStatusControlIcons()
+
+    SLASH_COMMANDS[SLASH_TRACK_COUNTESS] = ToggleTrackCountess
+    SLASH_COMMANDS[SLASH_TRACK_CROW]     = ToggleTrackCrow
+    SLASH_COMMANDS[SLASH_TRACK_STATUS]   = ShowTrackingStatus
 end
 
 EM:RegisterForEvent(ADDON_NAME, EVENT_ADD_ON_LOADED, OnLoaded)
