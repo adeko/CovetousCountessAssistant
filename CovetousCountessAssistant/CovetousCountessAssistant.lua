@@ -296,11 +296,11 @@ end
 -- Language support for highlighting quest items
 local function IsLanguageSupportedForHighlight()
     local languages = {
-        "en" = true,
-        "de" = true,
-        "fr" = true,
-        "es" = true,
-        "ru" = true,
+        en = true,
+        de = true,
+        fr = true,
+        es = true,
+        ru = true,
     }
     return languages[GetCVar(LANGUAGE_CVAR)]
 end
@@ -309,16 +309,12 @@ local function InitSettings()
     local defaults = {
         trackCountess       = true,
         trackCrow           = false,
-        highlightQuestItems = IsLanguageSupportedForHighlight(),
+        highlightQuestItems = true,
         autoSkipTipBoard    = false,
     }
 
     local SV = ZO_SavedVars:NewAccountWide(ADDON_NAME .. "_SV", SV_VERSION, "Settings", defaults)
     CCA.SV = SV
-
-    if not IsLanguageSupportedForHighlight() then
-        CCA.SV.highlightQuestItems = false
-    end
 
     if not LibAddonMenu2 then return end
 
@@ -1096,6 +1092,10 @@ local function ToggleTrackCrow()
 end
 
 local function ToggleHighlightQuestItems()
+    if not CCA.SV.highlightQuestItems and not IsLanguageSupportedForHighlight() then
+        d("[" .. ADDON_TITLE .. "] Quest highlighting is not supported in this language.")
+        return
+    end
     CCA.SV.highlightQuestItems = not CCA.SV.highlightQuestItems
     RefreshInventoryIcons()
     local msg = CCA.SV.highlightQuestItems and STRINGS.MSG_HIGHLIGHT_ON or STRINGS.MSG_HIGHLIGHT_OFF
@@ -1165,9 +1165,7 @@ local function OnLoaded(_, name)
     SLASH_COMMANDS[SLASH_TRACK_COUNTESS]  = ToggleTrackCountess
     SLASH_COMMANDS[SLASH_TRACK_CROW]      = ToggleTrackCrow
     SLASH_COMMANDS[SLASH_TRACK_STATUS]    = ShowTrackingStatus
-    if IsLanguageSupportedForHighlight() then
-        SLASH_COMMANDS[SLASH_TRACK_HIGHLIGHT] = ToggleHighlightQuestItems
-    end
+    SLASH_COMMANDS[SLASH_TRACK_HIGHLIGHT] = ToggleHighlightQuestItems
     SLASH_COMMANDS[SLASH_TRACK_AUTOSKIP]  = ToggleAutoSkipTipBoard
 end
 
