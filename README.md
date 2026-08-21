@@ -41,7 +41,7 @@ and optionally Bursar of Tributes (Crow).**
 - [LibAddonMenu-2.0](https://www.esoui.com/downloads/info7-LibAddonMenu.html) (Seerah, sirinsidiator, contributors)
 - [ESOUI](https://www.esoui.com): wiki / community API documentation
 
-## Related prior art (ideas only — independent code)
+## Related / prior projects (ideas only — independent code)
 
 These projects address similar Countess / Tip Board problems. This addon does **not** use their code, libraries, or file structure; it is a separate implementation.
 
@@ -50,6 +50,9 @@ These projects address similar Countess / Tip Board problems. This addon does **
 
 - [LibCovetousCountess](https://www.esoui.com/downloads/info3266-LibCovetousCountess.html) by olegbl and quelron  
   Prior library for Countess / Crow treasure usefulness. This addon does **not** depend on LibCovetousCountess; quest and tag matching are implemented separately.
+
+- [Dolgubon's Lazy Writ Crafter](https://www.esoui.com/downloads/info1346-DolgubonsLazyWritCrafter.html) by Dolgubon
+  Inspiration for using ZO_PreHook / ZO_PostHook around ZO_UpdateStatusControlIcons for UI status-icon manipulation. The implementation here is independent.
 
 ## Compatibility
 

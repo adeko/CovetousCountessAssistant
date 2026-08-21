@@ -22,7 +22,7 @@ local function ddebug(...)
     if n == 0 then
         return
     elseif n == 1 then
-        d(...)                   -- just print the single value
+        d(...)
     else
         d(string.format(...)) -- first arg = format string, rest = values
     end
@@ -133,7 +133,7 @@ local FENCE_ICON_COLOR_GREEN    = ZO_ColorDef:New("00FF00")
 
 local USED_ICONS = { [FENCE_ICON] = true, }
 
-local TARGET_NAMES           = {
+local TIPBOARD_TARGET_NAMES           = {
     -- en
     ["Tip Board"] = true,
     -- de
@@ -150,7 +150,7 @@ local TARGET_NAMES           = {
     ["提示板"] = true,
 }
 
-local SKIP_RESPONSES         = {
+local TIPBOARD_SKIP_RESPONSES         = {
     -- en
     ["<Keep reading.>"] = true,
     ["<Make a note of the request.>"] = true,
@@ -181,7 +181,7 @@ local SKIP_RESPONSES         = {
     ["<记下任务要求。>"] = true,
 }
 
-local COUNTESS_RESPONSES     = {
+local TIPBOARD_COUNTESS_RESPONSES     = {
     -- en
     ["<Read the contract.>"] = true,
 
@@ -876,10 +876,22 @@ end
 ----------------------------------------------------------------------
 -- Start (or refresh) tracking for a quest
 ----------------------------------------------------------------------
+
+-- TODO: Exclude not implemented languages
+local function IsLanguageSupported()
+    local rawLang = GetCVar("Language.2")
+    local langKey = NormalizeLanguageKey(rawLang)
+    return langKey ~= "zh" and langKey ~= "jp" and langKey ~= "kr" and langKey ~= "th"
+end
+
 local function ActivateQuestTracking(questId, journalIndex)
+    if not QUEST_ID[questId] then return end
+
+    if not IsLanguageSupported() then return end
+
     ACTIVE_QUESTS_ID[questId] = true
 
-    LocalDebugTools.PrintQuestDebugInfo(journalIndex)
+    -- LocalDebugTools.PrintQuestDebugInfo(journalIndex)
 
     if questId == QUEST_NAME_ID["The Covetous Countess"] then
         local questText = ""
@@ -918,6 +930,9 @@ end
 -- Stop tracking a quest
 local function DeactivateQuestTracking(questId)
     if not questId or not ACTIVE_QUESTS_ID[questId] then return end
+    if not QUEST_ID[questId] then return end
+
+    if not IsLanguageSupported() then return end
 
     ACTIVE_QUESTS_ID[questId] = nil
     ACTIVE_QUESTS_TAGS[questId] = nil
@@ -982,14 +997,14 @@ local function OnQuestRemoved(eventCode, isCompleted, journalIndex, questName, z
 end
 
 local function IsTargetBoard()
-    return TARGET_NAMES[GetUnitName("interact") or ""] ~= nil
+    return TIPBOARD_TARGET_NAMES[GetUnitName("interact") or ""] ~= nil
 end
 
 local function OnQuestOffered(eventCode)
     if not CCA.SV.autoSkipTipBoard then return end
     if not IsTargetBoard() then return end
     local _, response = GetOfferedQuestInfo()
-    if SKIP_RESPONSES[response] then
+    if TIPBOARD_SKIP_RESPONSES[response] then
         local interaction = SYSTEMS:GetObjectBasedOnCurrentScene(ZO_INTERACTION_SYSTEM_NAME)
         if interaction then interaction:CloseChatter() end
     end
