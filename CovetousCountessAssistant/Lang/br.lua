@@ -17,6 +17,12 @@ local strings = {
         = "Rastreamento Tesoureiro de Tributos: LIGADO",
     SI_COVETOUSCOUNTESSASSISTANT_MSG_CROW_OFF
         = "Rastreamento Tesoureiro de Tributos: DESLIGADO",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD
+        = "Ignorar ofertas do Quadro de Dicas",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_TOOLTIP
+        = "Fecha automaticamente as ofertas do Quadro de Dicas que não sejam da Condessa Cobiçosa.",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_WARNING
+        = "Isso fechará automaticamente os diálogos que não forem da Condessa.",
 }
 
 for stringId, stringValue in pairs(strings) do

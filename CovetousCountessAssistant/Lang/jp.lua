@@ -17,6 +17,12 @@ local strings = {
         = "貢物の会計係の追跡：オン",
     SI_COVETOUSCOUNTESSASSISTANT_MSG_CROW_OFF
         = "貢物の会計係の追跡：オフ",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD
+        = "情報掲示板のオファーを自動スキップ",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_TOOLTIP
+        = "貪欲な伯爵夫人以外の情報掲示板のオファーを自動的に閉じます。",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_WARNING
+        = "伯爵夫人以外の会話が自動的に閉じられます。",
 }
 
 for stringId, stringValue in pairs(strings) do

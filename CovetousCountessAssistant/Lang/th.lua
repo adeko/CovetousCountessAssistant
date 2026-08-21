@@ -17,6 +17,12 @@ local strings = {
         = "ติดตามเจ้าหน้าที่คลังบรรณาการ: เปิด",
     SI_COVETOUSCOUNTESSASSISTANT_MSG_CROW_OFF
         = "ติดตามเจ้าหน้าที่คลังบรรณาการ: ปิด",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD
+        = "ข้ามข้อเสนอกระดานเคล็ดลับอัตโนมัติ",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_TOOLTIP
+        = "ปิดข้อเสนอกระดานเคล็ดลับที่ไม่ใช่เคาน์เตสผู้โลภโดยอัตโนมัติ",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_WARNING
+        = "การดำเนินการนี้จะปิดบทสนทนาที่ไม่ใช่เคาน์เตสโดยอัตโนมัติ",
 }
 
 for stringId, stringValue in pairs(strings) do

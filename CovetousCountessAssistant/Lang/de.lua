@@ -17,6 +17,12 @@ local strings = {
         = "Schatzmeister der Tribute verfolgen: AN",
     SI_COVETOUSCOUNTESSASSISTANT_MSG_CROW_OFF
         = "Schatzmeister der Tribute verfolgen: AUS",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD
+        = "Auto-Überspringen: Pinnwand-Angebote",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_TOOLTIP
+        = "Schließt automatisch Pinnwand-Angebote, die nicht die Gierige Gräfin betreffen.",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_WARNING
+        = "Dies schließt automatisch Dialoge, die nicht die Gräfin betreffen.",
 }
 
 for stringId, stringValue in pairs(strings) do

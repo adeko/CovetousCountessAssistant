@@ -17,6 +17,12 @@ local strings = {
         = "贡品司库追踪：开",
     SI_COVETOUSCOUNTESSASSISTANT_MSG_CROW_OFF
         = "贡品司库追踪：关",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD
+        = "自动跳过提示板报价",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_TOOLTIP
+        = "自动关闭非贪婪女伯爵的提示板报价。",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_WARNING
+        = "这将自动关闭非女伯爵的对话。",
 }
 
 for stringId, stringValue in pairs(strings) do

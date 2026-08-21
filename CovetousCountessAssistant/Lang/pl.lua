@@ -17,6 +17,12 @@ local strings = {
         = "Śledzenie Skarbnika Danin: WŁ",
     SI_COVETOUSCOUNTESSASSISTANT_MSG_CROW_OFF
         = "Śledzenie Skarbnika Danin: WYŁ",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD
+        = "Auto-pomijanie ofert Tablicy Wskazówek",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_TOOLTIP
+        = "Automatycznie zamyka oferty Tablicy Wskazówek, które nie dotyczą Chciwej Hrabiny.",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_WARNING
+        = "To automatycznie zamknie dialogi niezwiązane z Hrabiną.",
 }
 
 for stringId, stringValue in pairs(strings) do

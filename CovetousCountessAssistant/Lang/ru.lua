@@ -17,6 +17,12 @@ local strings = {
         = "Отслеживание Казначея дани: ВКЛ",
     SI_COVETOUSCOUNTESSASSISTANT_MSG_CROW_OFF
         = "Отслеживание Казначея дани: ВЫКЛ",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD
+        = "Авто-пропуск предложений Доски подсказок",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_TOOLTIP
+        = "Автоматически закрывать предложения Доски подсказок, не относящиеся к Алчной графине.",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_WARNING
+        = "Это автоматически закроет диалоги, не связанные с графиней.",
 }
 
 for stringId, stringValue in pairs(strings) do

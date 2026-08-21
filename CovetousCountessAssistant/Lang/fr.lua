@@ -17,6 +17,12 @@ local strings = {
         = "Suivi Trésorier des Tributs : ACTIVÉ",
     SI_COVETOUSCOUNTESSASSISTANT_MSG_CROW_OFF
         = "Suivi Trésorier des Tributs : DÉSACTIVÉ",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD
+        = "Ignorer offres du Tableau des indices",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_TOOLTIP
+        = "Fermer automatiquement les offres du Tableau des indices qui ne concernent pas la Comtesse Avide.",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_WARNING
+        = "Cela fermera automatiquement les dialogues autres que ceux de la Comtesse.",
 }
 
 for stringId, stringValue in pairs(strings) do

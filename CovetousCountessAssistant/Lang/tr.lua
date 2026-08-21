@@ -17,6 +17,12 @@ local strings = {
         = "Harçlar Hazinedarı takibi: AÇIK",
     SI_COVETOUSCOUNTESSASSISTANT_MSG_CROW_OFF
         = "Harçlar Hazinedarı takibi: KAPALI",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD
+        = "İpucu Panosu tekliflerini otomatik atla",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_TOOLTIP
+        = "Açgözlü Kontes olmayan İpucu Panosu tekliflerini otomatik olarak kapatır.",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_WARNING
+        = "Bu, Kontes olmayan diyalogları otomatik olarak kapatacaktır.",
 }
 
 for stringId, stringValue in pairs(strings) do

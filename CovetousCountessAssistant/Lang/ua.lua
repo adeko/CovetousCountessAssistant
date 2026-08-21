@@ -17,6 +17,12 @@ local strings = {
         = "Відстеження Скарбника данини: УВІМК",
     SI_COVETOUSCOUNTESSASSISTANT_MSG_CROW_OFF
         = "Відстеження Скарбника данини: ВИМК",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD
+        = "Авто-пропуск пропозицій Дошки підказок",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_TOOLTIP
+        = "Автоматично закривати пропозиції Дошки підказок, які не стосуються Жадібної графині.",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_WARNING
+        = "Це автоматично закриє діалоги, що не стосуються графині.",
 }
 
 for stringId, stringValue in pairs(strings) do
