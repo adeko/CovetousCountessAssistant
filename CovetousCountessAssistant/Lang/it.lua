@@ -17,6 +17,14 @@ local strings = {
         = "Tracciamento Tesoriere dei Tributi: ATTIVO",
     SI_COVETOUSCOUNTESSASSISTANT_MSG_CROW_OFF
         = "Tracciamento Tesoriere dei Tributi: DISATTIVO",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_HIGHLIGHT_QUEST_ITEMS
+        = "Evidenzia oggetti missione corrispondenti",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_HIGHLIGHT_QUEST_ITEMS_TOOLTIP
+        = "Colora di verde le icone degli oggetti che corrispondono ai tag della missione attiva.",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_HIGHLIGHT_ON
+        = "Evidenziazione oggetti missione: ATTIVA",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_HIGHLIGHT_OFF
+        = "Evidenziazione oggetti missione: DISATTIVA",
     SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD
         = "Salta offerte della Bacheca Indizi",
     SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_TOOLTIP

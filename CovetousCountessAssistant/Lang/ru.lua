@@ -17,6 +17,14 @@ local strings = {
         = "Отслеживание Казначея дани: ВКЛ",
     SI_COVETOUSCOUNTESSASSISTANT_MSG_CROW_OFF
         = "Отслеживание Казначея дани: ВЫКЛ",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_HIGHLIGHT_QUEST_ITEMS
+        = "Подсветка совпадений предметов заданий",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_HIGHLIGHT_QUEST_ITEMS_TOOLTIP
+        = "Окрашивает значки предметов в зелёный цвет при совпадении с тегами активного задания.",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_HIGHLIGHT_ON
+        = "Подсветка предметов задания: ВКЛ",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_HIGHLIGHT_OFF
+        = "Подсветка предметов задания: ВЫКЛ",
     SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD
         = "Авто-пропуск предложений Доски подсказок",
     SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_TOOLTIP

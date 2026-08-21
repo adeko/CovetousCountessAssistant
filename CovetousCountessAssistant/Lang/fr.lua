@@ -17,6 +17,14 @@ local strings = {
         = "Suivi Trésorier des Tributs : ACTIVÉ",
     SI_COVETOUSCOUNTESSASSISTANT_MSG_CROW_OFF
         = "Suivi Trésorier des Tributs : DÉSACTIVÉ",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_HIGHLIGHT_QUEST_ITEMS
+        = "Surligner les objets de quête",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_HIGHLIGHT_QUEST_ITEMS_TOOLTIP
+        = "Colore en vert les icônes des objets correspondant aux tags de la quête active.",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_HIGHLIGHT_ON
+        = "Surlignage des objets de quête : ACTIVÉ",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_HIGHLIGHT_OFF
+        = "Surlignage des objets de quête : DÉSACTIVÉ",
     SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD
         = "Ignorer offres du Tableau des indices",
     SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_TOOLTIP

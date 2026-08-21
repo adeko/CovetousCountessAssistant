@@ -17,6 +17,14 @@ local strings = {
         = "Bursar of Tributes tracking: ON",
     SI_COVETOUSCOUNTESSASSISTANT_MSG_CROW_OFF
         = "Bursar of Tributes tracking: OFF",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_HIGHLIGHT_QUEST_ITEMS
+        = "Highlight quest item matches",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_HIGHLIGHT_QUEST_ITEMS_TOOLTIP
+        = "Color-code icons green when items match the active quest tags.",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_HIGHLIGHT_ON
+        = "Quest item highlighting: ON",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_HIGHLIGHT_OFF
+        = "Quest item highlighting: OFF",
     SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD
         = "Auto-skip Tip Board offers",
     SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_TOOLTIP

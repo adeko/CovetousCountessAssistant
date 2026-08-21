@@ -17,6 +17,14 @@ local strings = {
         = "ติดตามเจ้าหน้าที่คลังบรรณาการ: เปิด",
     SI_COVETOUSCOUNTESSASSISTANT_MSG_CROW_OFF
         = "ติดตามเจ้าหน้าที่คลังบรรณาการ: ปิด",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_HIGHLIGHT_QUEST_ITEMS
+        = "เน้นไอเทมเควสต์ที่ตรงกัน",
+    SI_COVETOUSCOUNTESSASSISTANT_OPTION_HIGHLIGHT_QUEST_ITEMS_TOOLTIP
+        = "เปลี่ยนไอคอนเป็นสีเขียวเมื่อไอเทมตรงกับแท็กของเควสต์ที่กำลังทำอยู่",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_HIGHLIGHT_ON
+        = "การเน้นไอเทมเควสต์: เปิด",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_HIGHLIGHT_OFF
+        = "การเน้นไอเทมเควสต์: ปิด",
     SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD
         = "ข้ามข้อเสนอกระดานเคล็ดลับอัตโนมัติ",
     SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_TOOLTIP

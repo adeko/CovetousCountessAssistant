@@ -6,11 +6,12 @@ local ADDON_WEBSITE = "https://www.esoui.com/downloads/info4778-CovetousCountess
 local SV_VERSION    = 1
 local LANGUAGE_CVAR = "Language.2"
 
-local SLASH_TRACK_SETTINGS = "/ccatracksettings" -- opens addon settings
-local SLASH_TRACK_STATUS   = "/ccatrackstatus"   -- show addon status
-local SLASH_TRACK_COUNTESS = "/ccatrackcountess" -- toggle Covetous Countess tracking
-local SLASH_TRACK_CROW     = "/ccatrackcrow"     -- toggle Bursar of Tributes tracking
-local SLASH_TRACK_AUTOSKIP = "/ccatrackautoskip" -- toggle Tip Board auto-skip
+local SLASH_TRACK_SETTINGS  = "/ccatracksettings"  -- opens settings
+local SLASH_TRACK_STATUS    = "/ccatrackstatus"    -- show status
+local SLASH_TRACK_COUNTESS  = "/ccatrackcountess"  -- toggle Covetous Countess tracking
+local SLASH_TRACK_CROW      = "/ccatrackcrow"      -- toggle Bursar of Tributes tracking
+local SLASH_TRACK_HIGHLIGHT = "/ccatrackhighlight" -- toggle highlight
+local SLASH_TRACK_AUTOSKIP  = "/ccatrackautoskip"  -- toggle Tip Board auto-skip
 
 local CCA = {}
 
@@ -43,6 +44,7 @@ local GetString                     = GetString
 local ZO_SavedVars                  = ZO_SavedVars
 local tinsert                       = table.insert
 local tremove                       = table.remove
+local tconcat                       = table.concat
 
 --[[
 Treasure categories used by The Covetous Countess:
@@ -239,7 +241,12 @@ local function CacheLocalizedStrings()
         = GetString(SI_COVETOUSCOUNTESSASSISTANT_OPTION_TRACK_CROW)
     STRINGS.OPTION_TRACK_CROW_TOOLTIP 
         = GetString(SI_COVETOUSCOUNTESSASSISTANT_OPTION_TRACK_CROW_TOOLTIP)
-    STRINGS.OPTION_AUTOSKIP_TIPBOARD 
+    STRINGS.OPTION_HIGHLIGHT_QUEST_ITEMS
+        = GetString(SI_COVETOUSCOUNTESSASSISTANT_OPTION_HIGHLIGHT_QUEST_ITEMS)
+    STRINGS.OPTION_HIGHLIGHT_QUEST_ITEMS_TOOLTIP
+        = GetString(
+        SI_COVETOUSCOUNTESSASSISTANT_OPTION_HIGHLIGHT_QUEST_ITEMS_TOOLTIP)
+    STRINGS.OPTION_AUTOSKIP_TIPBOARD
         = GetString(SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD)
     STRINGS.OPTION_AUTOSKIP_TIPBOARD_TOOLTIP 
         = GetString(SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_TOOLTIP)
@@ -259,6 +266,10 @@ local function CacheLocalizedStrings()
         = GetString(SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_ON)
     STRINGS.MSG_AUTOSKIP_OFF
         = GetString(SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_OFF)
+    STRINGS.MSG_HIGHLIGHT_ON
+        = GetString(SI_COVETOUSCOUNTESSASSISTANT_MSG_HIGHLIGHT_ON)
+    STRINGS.MSG_HIGHLIGHT_OFF
+        = GetString(SI_COVETOUSCOUNTESSASSISTANT_MSG_HIGHLIGHT_OFF)
 end
 
 ----------------------------------------------------------------------
@@ -282,11 +293,24 @@ local function RefreshInventoryIcons()
     end
 end
 
+-- Language support for highlighting quest items
+local function IsLanguageSupportedForHighlight()
+    local languages = {
+        "en" = true,
+        "de" = true,
+        "fr" = true,
+        "es" = true,
+        "ru" = true,
+    }
+    return languages[GetCVar(LANGUAGE_CVAR)]
+end
+
 local function InitSettings()
     local defaults = {
-        trackCountess    = true,   -- track Covetous Countess treasure tags
-        trackCrow        = false,  -- track Bursar of Tributes (Crow Store) treasure tags
-        autoSkipTipBoard = false,  -- auto-close Tip Board offers that aren't the Countess
+        trackCountess       = true,
+        trackCrow           = false,treasure tags
+        highlightQuestItems = IsLanguageSupportedForHighlight(),
+        autoSkipTipBoard    = false,
     }
 
     local SV = ZO_SavedVars:NewAccountWide(ADDON_NAME .. "_SV", SV_VERSION, "Settings", defaults)
@@ -328,6 +352,18 @@ local function InitSettings()
                 RefreshInventoryIcons()
             end,
             default = defaults.trackCrow,
+        },
+        {
+            type    = "checkbox",
+            name    = STRINGS.OPTION_HIGHLIGHT_QUEST_ITEMS,
+            tooltip = STRINGS.OPTION_HIGHLIGHT_QUEST_ITEMS_TOOLTIP,
+            getFunc = function() return SV.highlightQuestItems end,
+            setFunc = function(v)
+                SV.highlightQuestItems = v
+                RefreshInventoryIcons()
+            end,
+            default = defaults.highlightQuestItems,
+            hidden  = not IsLanguageSupportedForHighlight(),
         },
         {
             type    = "checkbox",
@@ -499,7 +535,12 @@ local function UpdateStatusControlIcons()
         local tinted = false
         for _, data in ipairs(statusControl.iconData) do
             if data.iconTexture == FENCE_ICON then
-                data.iconTint = matchesQuest and FENCE_ICON_COLOR_GREEN or FENCE_ICON_COLOR_WHITE
+                -- highlighting is enabled AND item matches quest
+                if CCA.SV.highlightQuestItems and matchesQuest then
+                    data.iconTint = FENCE_ICON_COLOR_GREEN
+                else
+                    data.iconTint = FENCE_ICON_COLOR_WHITE
+                end
                 tinted = true
             end
         end
@@ -1048,6 +1089,18 @@ local function ToggleTrackCrow()
     end
 end
 
+local function ToggleHighlightQuestItems()
+    CCA.SV.highlightQuestItems = not CCA.SV.highlightQuestItems
+    RefreshInventoryIcons()
+    local msg = CCA.SV.highlightQuestItems and STRINGS.MSG_HIGHLIGHT_ON or STRINGS.MSG_HIGHLIGHT_OFF
+    if msg and msg ~= "" then
+        d("[" .. ADDON_TITLE .. "] " .. msg)
+    else
+        d(string.format("[%s] Quest item highlighting: %s",
+            ADDON_TITLE, CCA.SV.highlightQuestItems and "ON" or "OFF"))
+    end
+end
+
 local function ToggleAutoSkipTipBoard()
     CCA.SV.autoSkipTipBoard = not CCA.SV.autoSkipTipBoard
     local msg = CCA.SV.autoSkipTipBoard and STRINGS.MSG_AUTOSKIP_ON or STRINGS.MSG_AUTOSKIP_OFF
@@ -1068,11 +1121,16 @@ local function ShowTrackingStatus()
         return string.format("%s tracking: %s", label, isActive and "ON" or "OFF")
     end
 
-    local countess = getStatus(sv.trackCountess, STRINGS.MSG_COUNTESS_ON, STRINGS.MSG_COUNTESS_OFF, "Countess")
-    local crow = getStatus(sv.trackCrow, STRINGS.MSG_CROW_ON, STRINGS.MSG_CROW_OFF, "Bursar of Tributes")
-    local autoskip = getStatus(sv.autoSkipTipBoard, STRINGS.MSG_AUTOSKIP_ON, STRINGS.MSG_AUTOSKIP_OFF, "Tip Board auto-skip")
+    local params = {}
 
-    d(string.format("[%s]\n%s\n%s\n%s", ADDON_TITLE, countess, crow, autoskip))
+    tinsert(params, getStatus(sv.trackCountess, STRINGS.MSG_COUNTESS_ON, STRINGS.MSG_COUNTESS_OFF, "Countess"))
+    tinsert(params, getStatus(sv.trackCrow, STRINGS.MSG_CROW_ON, STRINGS.MSG_CROW_OFF, "Bursar of Tributes"))
+    if IsLanguageSupportedForHighlight() then
+        tinsert(params, getStatus(sv.highlightQuestItems, STRINGS.MSG_HIGHLIGHT_ON, STRINGS.MSG_HIGHLIGHT_OFF, "Highlight"))
+    end
+    tinsert(params, getStatus(sv.autoSkipTipBoard, STRINGS.MSG_AUTOSKIP_ON, STRINGS.MSG_AUTOSKIP_OFF, "Tip Board auto-skip"))
+
+    d(string.format("[%s]\n%s", ADDON_TITLE, tconcat(params, "\n")))
 end
 
 ----------------------------------------------------------------------
@@ -1098,10 +1156,13 @@ local function OnLoaded(_, name)
     BuildTreasureTags()
     UpdateStatusControlIcons()
 
-    SLASH_COMMANDS[SLASH_TRACK_COUNTESS] = ToggleTrackCountess
-    SLASH_COMMANDS[SLASH_TRACK_CROW]     = ToggleTrackCrow
-    SLASH_COMMANDS[SLASH_TRACK_STATUS]   = ShowTrackingStatus
-    SLASH_COMMANDS[SLASH_TRACK_AUTOSKIP] = ToggleAutoSkipTipBoard
+    SLASH_COMMANDS[SLASH_TRACK_COUNTESS]  = ToggleTrackCountess
+    SLASH_COMMANDS[SLASH_TRACK_CROW]      = ToggleTrackCrow
+    SLASH_COMMANDS[SLASH_TRACK_STATUS]    = ShowTrackingStatus
+    if IsLanguageSupportedForHighlight() then
+        SLASH_COMMANDS[SLASH_TRACK_HIGHLIGHT] = ToggleHighlightQuestItems
+    end
+    SLASH_COMMANDS[SLASH_TRACK_AUTOSKIP]  = ToggleAutoSkipTipBoard
 end
 
 EM:RegisterForEvent(ADDON_NAME, EVENT_ADD_ON_LOADED, OnLoaded)
