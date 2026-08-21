@@ -58,22 +58,22 @@ local COUNTESS_DUMMY_IDS = {
         ["Dolls"]                   = "64365",
         ["Statues"]                 = "61536",
     },
-    [ "Curiosities" ]               = {
+    ["Curiosities"]                 = {
         ["Ritual Objects"]          = "64413",
         ["Oddities"]                = "61442",
         ["Magic Curiosities"]       = "64389",
     },
-    [ "Documents" ]                 = {
+    ["Documents"]                   = {
         ["Writings"]                = "61207",
         ["Scrivener Supplies"]      = "62584",
         ["Maps"]                    = "62081",
     },
-    [ "Accessories" ]               = {
+    ["Accessories"]                 = {
         ["Cosmetics"]               = "63157",
         ["Dry Goods"]               = "61382",
         ["Wardrobe Accessories"]    = "61107",
     },
-    [ "Kitchenware" ]               = {
+    ["Kitchenware"]                 = {
         ["Drinkware"]               = "61458",
         ["Utensils"]                = "64326",
         ["Dishes and Cookware"]     = "61263",
@@ -93,18 +93,17 @@ local CROW_DUMMY_IDS = {
         ["Dolls"]                   = "64365",
         ["Children's Toys"]         = "64325",
     },
-    ["Respect"]     = {
+    ["Respect"]                     = {
         ["Drinkware"]               = "61458",
         ["Utensils"]                = "64326",
         ["Dishes and Cookware"]     = "61263",
     },
-    ["Tributes"]    = {
+    ["Tributes"]                    = {
         ["Cosmetics"]               = "63157",
         ["Grooming Items"]          = "62810",
     },
 }
 
--- Quest IDs (reserved for future quest-aware highlighting)
 local QUEST_NAME_ID = {
     ["The Covetous Countess"]   = 5584,
     ["A Matter of Respect"]     = 6072,
@@ -607,7 +606,7 @@ end
 -- Multi-byte safe UTF-8 character iterator (Lua 5.1)
 -- MUST be defined before any function that uses it.
 ----------------------------------------------------------------------
-local function string_to_chars(str)
+local function StringToChars(str)
     local chars = {}
     if not str or str == "" then return chars end
 
@@ -685,7 +684,7 @@ end
 ----------------------------------------------------------------------
 -- Generate unique n-grams for one order (with short-string fallback)
 ----------------------------------------------------------------------
-local function get_ngrams_of_order(chars, n)
+local function GetNgramsOfOrder(chars, n)
     local ngrams = {}
     local total = #chars
     if total == 0 then return ngrams end
@@ -709,10 +708,10 @@ end
 ----------------------------------------------------------------------
 -- Multi-order n-gram set (union)
 ----------------------------------------------------------------------
-local function get_multi_ngrams(chars, orders)
+local function GetMultiNgrams(chars, orders)
     local ngrams = {}
     for _, n in ipairs(orders) do
-        local set = get_ngrams_of_order(chars, n)
+        local set = GetNgramsOfOrder(chars, n)
         for g in pairs(set) do
             ngrams[g] = true
         end
@@ -738,9 +737,9 @@ local function BuildCategoryNgramSetsByOrder(sourceTags, langKey, orders)
         for tag, _ in pairs(tags) do
             local norm = NormalizeForNgrams(langKey, tag)
             if norm and norm ~= "" then
-                local chars = string_to_chars(norm)
+                local chars = StringToChars(norm)
                 for _, n in ipairs(orders) do
-                    local tagNgrams = get_ngrams_of_order(chars, n)
+                    local tagNgrams = GetNgramsOfOrder(chars, n)
                     for g in pairs(tagNgrams) do
                         catByOrder[n][g] = true
                     end
@@ -767,7 +766,7 @@ end
 -- Returns score, weighted_intersection, weighted_total (last two are
 -- handy for debug/tuning output).
 ----------------------------------------------------------------------
-local function score_coverage_weighted(catByOrder, questByOrder, orders)
+local function ScoreCoverageWeighted(catByOrder, questByOrder, orders)
     local weighted_intersection = 0
     local weighted_total = 0
 
@@ -816,10 +815,10 @@ local function FindMatchingGroup(quest_text, sourceTags, langKey)
         ddebug("Normalized text: " .. normalized_quest)
     end
 
-    local quest_chars = string_to_chars(normalized_quest)
+    local quest_chars = StringToChars(normalized_quest)
     local questNgramsByOrder = {}
     for _, n in ipairs(orders) do
-        questNgramsByOrder[n] = get_ngrams_of_order(quest_chars, n)
+        questNgramsByOrder[n] = GetNgramsOfOrder(quest_chars, n)
     end
 
     local best_group_id = nil
@@ -827,7 +826,7 @@ local function FindMatchingGroup(quest_text, sourceTags, langKey)
     local floor = USE_LOG_NORMALIZED_SCORE and MATCH_SCORE_FLOOR_LOG or MATCH_SCORE_FLOOR
 
     for group_id, catByOrder in pairs(categorySets) do
-        local score, matched_w, total_w = score_coverage_weighted(catByOrder, questNgramsByOrder, orders)
+        local score, matched_w, total_w = ScoreCoverageWeighted(catByOrder, questNgramsByOrder, orders)
         if DEBUG then
             ddebug("DEBUG ngram: %s → %.3f  (matched_w=%d / total_w=%d)", tostring(group_id), score, matched_w, total_w)
         end
@@ -836,8 +835,6 @@ local function FindMatchingGroup(quest_text, sourceTags, langKey)
             best_group_id = group_id
         end
     end
-
-    local tableJoin = table_concat(sourceTags[best_group_id], ", ")
 
     if DEBUG then
         local tableJoin = table_concat(sourceTags[best_group_id], ", ")
@@ -877,7 +874,10 @@ end
 -- Start (or refresh) tracking for a quest
 ----------------------------------------------------------------------
 
--- TODO: Exclude not implemented languages
+-- Temporarily disabled for CJK (zh/jp/kr) and Thai (th).
+-- The n-gram tables already contain orders for these languages, but the
+-- matcher has not yet been fully validated / tuned against real quest text
+-- in those locales.
 local function IsLanguageSupported()
     local rawLang = GetCVar("Language.2")
     local langKey = NormalizeLanguageKey(rawLang)
