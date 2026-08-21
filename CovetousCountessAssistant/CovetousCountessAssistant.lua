@@ -39,7 +39,6 @@ local GetItemLinkItemTagInfo        = GetItemLinkItemTagInfo
 local ZO_ColorDef                   = ZO_ColorDef
 local ZO_ScrollList_RefreshVisible  = ZO_ScrollList_RefreshVisible
 local zo_strformat                  = zo_strformat
-local zo_callLater                  = zo_callLater
 local GetString                     = GetString
 local ZO_SavedVars                  = ZO_SavedVars
 local tinsert                       = table.insert
@@ -184,6 +183,7 @@ local TIPBOARD_SKIP_RESPONSES         = {
     ["<记下任务要求。>"] = true,
 }
 
+--[[
 local TIPBOARD_COUNTESS_RESPONSES     = {
     -- en
     ["<Read the contract.>"] = true,
@@ -206,6 +206,7 @@ local TIPBOARD_COUNTESS_RESPONSES     = {
     -- zh
     ["<阅读契约>"] = true,
 }
+--]]
 
 ----------------------------------------------------------------------
 -- Localization cache
@@ -293,18 +294,6 @@ local function RefreshInventoryIcons()
     end
 end
 
--- Language support for highlighting quest items
-local function IsLanguageSupportedForHighlight()
-    local languages = {
-        en = true,
-        de = true,
-        fr = true,
-        es = true,
-        ru = true,
-    }
-    return languages[GetCVar(LANGUAGE_CVAR)]
-end
-
 local function InitSettings()
     local defaults = {
         trackCountess       = true,
@@ -363,9 +352,6 @@ local function InitSettings()
                 RefreshInventoryIcons()
             end,
             default = defaults.highlightQuestItems,
-            disabled = function ()
-                return not IsLanguageSupportedForHighlight()
-            end,
         },
         {
             type    = "checkbox",
@@ -518,12 +504,14 @@ local function UpdateStatusControlIcons()
         local statusControl = inventorySlot:GetNamedChild("StatusTexture")
         if not statusControl or not statusControl.iconData then return end
 
+        local itemLink = slotData.bagId and slotData.slotIndex
+            and GetItemLink(slotData.bagId, slotData.slotIndex)
+        local itemTags = itemLink and GetTreasureTags(itemLink)
+
         local matchesQuest = false
-        for _, questTags in pairs(ACTIVE_QUESTS_TAGS) do
-            if questTags and slotData.bagId and slotData.slotIndex then
-                local itemLink = GetItemLink(slotData.bagId, slotData.slotIndex)
-                local itemTags = itemLink and GetTreasureTags(itemLink)
-                if itemTags then
+        if itemTags then
+            for _, questTags in pairs(ACTIVE_QUESTS_TAGS) do
+                if questTags then
                     for _, tag in ipairs(itemTags) do
                         if questTags[tag] then
                             matchesQuest = true
@@ -531,6 +519,7 @@ local function UpdateStatusControlIcons()
                         end
                     end
                 end
+                if matchesQuest then break end -- stop scanning quests too
             end
         end
 
@@ -844,6 +833,23 @@ local function ScoreCoverageWeighted(catByOrder, questByOrder, orders)
 end
 
 ----------------------------------------------------------------------
+-- Cache for category n-grams by order
+----------------------------------------------------------------------
+
+-- module-level cache, keyed by langKey
+local categorySetCache = {}
+
+local function GetCategorySets(sourceTags, langKey, orders)
+    local cacheKey = langKey
+    local cached = categorySetCache[cacheKey]
+    if cached then return cached end
+
+    local built = BuildCategoryNgramSetsByOrder(sourceTags, langKey, orders)
+    categorySetCache[cacheKey] = built
+    return built
+end
+
+----------------------------------------------------------------------
 -- Main matcher
 ----------------------------------------------------------------------
 local function FindMatchingGroup(quest_text, sourceTags, langKey)
@@ -854,7 +860,7 @@ local function FindMatchingGroup(quest_text, sourceTags, langKey)
     local orders = NGRAM_ORDERS[langKey] or DEFAULT_NGRAM_ORDERS
 
     -- Build per-category n-gram sets, kept separate per order (no cross-tag grams)
-    local categorySets = BuildCategoryNgramSetsByOrder(sourceTags, langKey, orders)
+    local categorySets = GetCategorySets(sourceTags, langKey, orders)
 
     -- Quest n-grams (once)
     local normalized_quest = NormalizeForNgrams(langKey, quest_text)
@@ -886,8 +892,14 @@ local function FindMatchingGroup(quest_text, sourceTags, langKey)
     end
 
     if DEBUG then
-        local tableJoin = table_concat(sourceTags[best_group_id], ", ")
-        ddebug("Best group: " .. best_group_id .. ", score: " .. string_format("%.3f", max_score) .. ", tags: " .. tableJoin)
+        if best_group_id then
+            local tags = {}
+            for tag in pairs(sourceTags[best_group_id]) do tinsert(tags, tag) end
+            ddebug("Best group: %s, score: %.3f, tags: %s",
+                best_group_id, max_score, table_concat(tags, ", "))
+        else
+            ddebug("No matching group found (max_score below floor)")
+        end
     end
 
     if max_score >= floor then
@@ -903,19 +915,6 @@ end
 local function FindBestGroup(questText, sourceTags)
     local rawLang = GetCVar(LANGUAGE_CVAR)
     local langKey = NormalizeLanguageKey(rawLang)
-
-    if DEBUG then
-        if not NGRAM_ORDERS[langKey] then
-            ddebug("[%s] Unsupported language '%s' - falling back to default orders",
-                ADDON_NAME, tostring(rawLang))
-            langKey = "en"
-        else
-            ddebug("[%s] Language=%s  n-gram orders=%s",
-                ADDON_NAME, langKey,
-                table_concat(NGRAM_ORDERS[langKey], "+"))
-        end
-    end
-
     return FindMatchingGroup(questText, sourceTags, langKey)
 end
 
@@ -979,7 +978,7 @@ local function DeactivateQuestTracking(questId)
     if not questId or not ACTIVE_QUESTS_ID[questId] then return end
     if not QUEST_ID[questId] then return end
 
-    if not IsLanguageSupported() then return end
+    -- if not IsLanguageSupported() then return end
 
     ACTIVE_QUESTS_ID[questId] = nil
     ACTIVE_QUESTS_TAGS[questId] = nil
@@ -1092,10 +1091,6 @@ local function ToggleTrackCrow()
 end
 
 local function ToggleHighlightQuestItems()
-    if not CCA.SV.highlightQuestItems and not IsLanguageSupportedForHighlight() then
-        d("[" .. ADDON_TITLE .. "] Quest highlighting is not supported in this language.")
-        return
-    end
     CCA.SV.highlightQuestItems = not CCA.SV.highlightQuestItems
     RefreshInventoryIcons()
     local msg = CCA.SV.highlightQuestItems and STRINGS.MSG_HIGHLIGHT_ON or STRINGS.MSG_HIGHLIGHT_OFF
@@ -1131,9 +1126,7 @@ local function ShowTrackingStatus()
 
     tinsert(params, getStatus(sv.trackCountess, STRINGS.MSG_COUNTESS_ON, STRINGS.MSG_COUNTESS_OFF, "Countess"))
     tinsert(params, getStatus(sv.trackCrow, STRINGS.MSG_CROW_ON, STRINGS.MSG_CROW_OFF, "Bursar of Tributes"))
-    if IsLanguageSupportedForHighlight() then
-        tinsert(params, getStatus(sv.highlightQuestItems, STRINGS.MSG_HIGHLIGHT_ON, STRINGS.MSG_HIGHLIGHT_OFF, "Highlight"))
-    end
+    tinsert(params, getStatus(sv.highlightQuestItems, STRINGS.MSG_HIGHLIGHT_ON, STRINGS.MSG_HIGHLIGHT_OFF, "Highlight"))
     tinsert(params, getStatus(sv.autoSkipTipBoard, STRINGS.MSG_AUTOSKIP_ON, STRINGS.MSG_AUTOSKIP_OFF, "Tip Board auto-skip"))
 
     d(string.format("[%s]\n%s", ADDON_TITLE, tconcat(params, "\n")))
