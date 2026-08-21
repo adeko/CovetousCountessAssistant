@@ -685,6 +685,14 @@ end
 -- NEVER use %c or %p – they are locale-dependent and corrupt UTF-8.
 ----------------------------------------------------------------------
 
+local function DumpBytes(label, s)
+    local bytes = {}
+    for i = 1, #s do
+        bytes[#bytes + 1] = string.format("%02X", string.byte(s, i))
+    end
+    d(label .. ": " .. table.concat(bytes, " "))
+end
+
 local function NormalizeForNgrams(langKey, text)
     if not text then return "" end
     local s = tostring(text)
@@ -706,10 +714,15 @@ local function NormalizeForNgrams(langKey, text)
 
     -- Strip ONLY pure ASCII punctuation (explicit ranges, never %p)
     -- Ranges: !-/  :@  [-`  {-~
-    s = string_gsub(s, "[!-/:-@[-`{-~]", "")
+    s = string_gsub(s, "[!-/:-@[-`{-~]", " ")
 
     -- Strip punctuation common to CJK 
-    s = string_gsub(s, "[、。，！？「」]", "")
+    s = string_gsub(s, "[、。，！？「」]", " ")
+
+    -- Trim + collapse whitespace
+    s = string_gsub(s, "^%s+", "")
+    s = string_gsub(s, "%s+$", "")
+    s = string_gsub(s, "%s+", " ")
 
     -- Continuous character stream for CJK languages
     if langKey == "zh" or langKey == "jp" or langKey == "kr" or langKey == "th" then
@@ -868,6 +881,8 @@ local function FindMatchingGroup(quest_text, sourceTags, langKey)
     if DEBUG then
         ddebug("Original text: " .. quest_text)
         ddebug("Normalized text: " .. normalized_quest)
+        DumpBytes("Original bytes", quest_text)
+        DumpBytes("Normalized bytes", normalized_quest)
     end
 
     local quest_chars = StringToChars(normalized_quest)
@@ -943,14 +958,31 @@ local function ActivateQuestTracking(questId, journalIndex)
         local questText = ""
 
         local numSteps = GetJournalQuestNumSteps(journalIndex)
-        for stepIndex = 1, numSteps do
-            local stepText, _, _, _, numConditions =
+
+        if numSteps == 1 then
+            -- on quest items dropped, quest conditions reset
+            local stepIndex = 1
+            local _, _, _, _, numConditions =
                 GetJournalQuestStepInfo(journalIndex, stepIndex)
             if numConditions > 0 then
                 local conditionIndex = 1
-                local conditionText =
-                    GetJournalQuestConditionInfo(journalIndex, stepIndex, conditionIndex)
-                questText = questText .. " " .. conditionText
+                local conditionText, current, max =
+                    GetJournalQuestConditionInfo(journalIndex, stepIndex, conditionIndex) 
+                if current < max then
+                    questText = questText .. " " .. conditionText
+                end
+            end
+        else
+            -- on quest added
+            for stepIndex = 1, numSteps do
+                local stepText, _, _, _, numConditions =
+                    GetJournalQuestStepInfo(journalIndex, stepIndex)
+                if numConditions > 0 then
+                    local conditionIndex = 1
+                    local conditionText =
+                        GetJournalQuestConditionInfo(journalIndex, stepIndex, conditionIndex)
+                    questText = questText .. " " .. conditionText
+                end
             end
         end
 
