@@ -308,13 +308,17 @@ end
 local function InitSettings()
     local defaults = {
         trackCountess       = true,
-        trackCrow           = false,treasure tags
+        trackCrow           = false,
         highlightQuestItems = IsLanguageSupportedForHighlight(),
         autoSkipTipBoard    = false,
     }
 
     local SV = ZO_SavedVars:NewAccountWide(ADDON_NAME .. "_SV", SV_VERSION, "Settings", defaults)
     CCA.SV = SV
+
+    if not IsLanguageSupportedForHighlight() then
+        CCA.SV.highlightQuestItems = false
+    end
 
     if not LibAddonMenu2 then return end
 
@@ -363,7 +367,9 @@ local function InitSettings()
                 RefreshInventoryIcons()
             end,
             default = defaults.highlightQuestItems,
-            hidden  = not IsLanguageSupportedForHighlight(),
+            disabled = function ()
+                return not IsLanguageSupportedForHighlight()
+            end,
         },
         {
             type    = "checkbox",
