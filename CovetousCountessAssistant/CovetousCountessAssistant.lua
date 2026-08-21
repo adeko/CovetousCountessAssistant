@@ -141,6 +141,7 @@ local SKIP_RESPONSES         = {
 
     -- de
     ["<Weiterlesen.>"] = true,
+    ["<Weiterlesen>"] = true,
     ["<Diese Anfrage vermerken.>"] = true,
 
     -- fr
@@ -512,71 +513,208 @@ local function CheckTreasureTagsLoaded()
 end
 
 ----------------------------------------------------------------------
--- Quests Tracking
+-- Quests Tracking – simplified multi-order n-gram fuzzy matcher
+--
+-- Design (minimal normalization – game already provides consistent text):
+--   1. N-grams generated PER TAG, then unioned into the category set.
+--      No cross-tag grams.
+--   2. CJK: character unigrams + bigrams; Latin/Cyrillic: 2+3.
+--   3. NO character rewriting (no half-width/full-width, no dakuten).
+--      Only strip control chars, punctuation and extra whitespace.
+--   4. Coverage score = |category ∩ quest| / |category|
 ----------------------------------------------------------------------
 
--- N-gram fuzzy matching
--- lua 5.1 customized
-local string_lower  = zo_strlower -- string.lower
-local string_sub    = zo_strsub   -- string.sub
-local string_len    = string.len
-local string_byte   = string.byte
+local string_lower         = zo_strlower
+local string_sub           = zo_strsub
+local string_len           = string.len
+local string_byte          = string.byte
+local string_gsub          = string.gsub
+local string_format        = string.format
+local table_insert         = table.insert
+local table_concat         = table.concat
 
--- Language → n-gram size (based on linguistic characteristics)
--- Bigrams  for CJKT (characters ≈ syllables / concepts, no spaces)
--- Trigrams for Latin / Cyrillic / agglutinative (longer words + morphology)
-local NGRAM_SIZE    = {
-    zh = 1, -- Chinese Simplified
-    jp = 1, -- Japanese
-    kr = 2, -- Korean
-    th = 2, -- Thai
-    -- everything else defaults to 3
-    de = 3,
-    en = 3,
-    es = 3,
-    fr = 3,
-    ru = 3,
-    br = 3,
-    it = 3,
-    pl = 3,
-    tr = 3,
-    ua = 3,
+-- Language → preferred n-gram orders
+local NGRAM_ORDERS         = {
+    zh = { 1, 2 }, -- Chinese
+    jp = { 1, 2 }, -- Japanese
+    kr = { 1, 2 }, -- Korean
+    th = { 1, 2 }, -- Thai
+    de = { 2, 3 },
+    en = { 2, 3 },
+    es = { 2, 3 },
+    fr = { 2, 3 },
+    ru = { 2, 3 },
+    br = { 2, 3 },
+    it = { 2, 3 },
+    pl = { 2, 3 },
+    tr = { 2, 3 },
+    ua = { 2, 3 },
 }
 
-local DEFAULT_NGRAM = 3
+local DEFAULT_NGRAM_ORDERS = { 2, 3 }
+local MATCH_SCORE_FLOOR    = 0.10
 
--- Multi-byte safe character iterator (UTF-8)
+-- Debug flag – set true only while testing
+local DEBUG_NGRAM          = true
+
+local function ddebug(...)
+    if DEBUG_NGRAM then
+        d(string_format(...))
+    end
+end
+
+----------------------------------------------------------------------
+-- Language key normalization
+----------------------------------------------------------------------
+local function NormalizeLanguageKey(lang)
+    if not lang or lang == "" then return "en" end
+    local key = string_lower(string_sub(lang, 1, 2))
+    if key == "ja" then return "jp" end
+    if key == "ko" then return "kr" end
+    if key == "pt" then return "br" end
+    return key
+end
+
+----------------------------------------------------------------------
+-- Multi-byte safe UTF-8 character iterator (Lua 5.1)
+-- MUST be defined before any function that uses it.
+----------------------------------------------------------------------
 local function string_to_chars(str)
     local chars = {}
+    if not str or str == "" then return chars end
+
     local i = 1
-    str = string_lower(str)
     local len = string_len(str)
 
     while i <= len do
-        local byte = string_byte(str, i)
+        local b = string_byte(str, i)
         local char_bytes = 1
-        if byte >= 0xc0 and byte <= 0xdf then
+
+        if b >= 0xC0 and b <= 0xDF then
             char_bytes = 2
-        elseif byte >= 0xe0 and byte <= 0xef then
+        elseif b >= 0xE0 and b <= 0xEF then
             char_bytes = 3
-        elseif byte >= 0xf0 and byte <= 0xf7 then
+        elseif b >= 0xF0 and b <= 0xF7 then
             char_bytes = 4
         end
 
-        local char = string_sub(str, i, i + char_bytes - 1)
-        table.insert(chars, char)
+        if i + char_bytes - 1 > len then
+            char_bytes = 1
+        end
+
+        table_insert(chars, string_sub(str, i, i + char_bytes - 1))
         i = i + char_bytes
     end
+
     return chars
 end
 
--- Generate a set of unique n-grams (n = 2 or 3)
-local function get_ngrams(chars, n)
-    local ngrams = {}
-    if #chars < n then
-        return ngrams -- too short → empty set
+----------------------------------------------------------------------
+-- Minimal safe normalizer
+--   - lowercase (useful for Latin; harmless for CJK)
+--   - trim + collapse whitespace
+--   - strip ONLY pure ASCII control + punctuation (never touch 0x80+)
+--   - strip common CJK punctuation (character-safe table)
+--   - for CJK: remove remaining spaces → continuous character stream
+-- NO half-width / full-width / dakuten rewriting.
+-- NEVER use %c or %p – they are locale-dependent and corrupt UTF-8.
+----------------------------------------------------------------------
+local CJK_PUNCT = {
+    ["、"] = true,
+    ["。"] = true,
+    ["，"] = true,
+    ["．"] = true,
+    ["・"] = true,
+    ["："] = true,
+    ["；"] = true,
+    ["！"] = true,
+    ["？"] = true,
+    ["「"] = true,
+    ["」"] = true,
+    ["『"] = true,
+    ["』"] = true,
+    ["（"] = true,
+    ["）"] = true,
+    ["【"] = true,
+    ["】"] = true,
+    ["［"] = true,
+    ["］"] = true,
+    ["｛"] = true,
+    ["｝"] = true,
+    ["〈"] = true,
+    ["〉"] = true,
+    ["《"] = true,
+    ["》"] = true,
+    ["〔"] = true,
+    ["〕"] = true,
+    ["…"] = true,
+    ["—"] = true,
+    ["～"] = true,
+    ["￥"] = true,
+    ["゛"] = true,
+    ["゜"] = true,
+    ["｡"] = true,
+    ["｢"] = true,
+    ["｣"] = true,
+    ["､"] = true,
+    ["･"] = true,
+}
+
+local function NormalizeForNgrams(langKey, text)
+    if not text then return "" end
+    local s = tostring(text)
+
+    s = string_lower(s)
+
+    -- Trim + collapse whitespace
+    s = string_gsub(s, "^%s+", "")
+    s = string_gsub(s, "%s+$", "")
+    s = string_gsub(s, "%s+", " ")
+
+    -- Strip ONLY pure ASCII control (0x00-0x1F, 0x7F)
+    -- Explicit byte ranges – never use %c (locale-dependent)
+    s = string_gsub(s, "[\0-\31\127]", "")
+
+    -- Strip ONLY pure ASCII punctuation (explicit ranges, never %p)
+    -- Ranges: !-/  :@  [-`  {-~
+    s = string_gsub(s, "[!-/:-@[-`{-~]", "")
+
+    -- Strip CJK / full-width punctuation character-by-character (safe)
+    do
+        local chars = string_to_chars(s)
+        local out = {}
+        for i = 1, #chars do
+            local c = chars[i]
+            if not CJK_PUNCT[c] then
+                table_insert(out, c)
+            end
+        end
+        s = table_concat(out)
     end
-    for i = 1, #chars - n + 1 do
+
+    -- Continuous character stream for CJK languages
+    if langKey == "zh" or langKey == "jp" or langKey == "kr" or langKey == "th" then
+        s = string_gsub(s, "%s+", "")
+    end
+
+    return s
+end
+
+----------------------------------------------------------------------
+-- Generate unique n-grams for one order (with short-string fallback)
+----------------------------------------------------------------------
+local function get_ngrams_of_order(chars, n)
+    local ngrams = {}
+    local total = #chars
+    if total == 0 then return ngrams end
+
+    if n > total then
+        -- Degenerate: whole string becomes one gram
+        ngrams[table_concat(chars)] = true
+        return ngrams
+    end
+
+    for i = 1, total - n + 1 do
         local gram = ""
         for j = 0, n - 1 do
             gram = gram .. chars[i + j]
@@ -586,101 +724,180 @@ local function get_ngrams(chars, n)
     return ngrams
 end
 
--- Score = fraction of the group's n-grams that appear anywhere in the quest text
--- (coverage of the short group inside the long text)
-local function score_group_match(group_text, quest_text, n)
-    local g_chars = string_to_chars(group_text)
-    local q_chars = string_to_chars(quest_text)
+----------------------------------------------------------------------
+-- Multi-order n-gram set (union)
+----------------------------------------------------------------------
+local function get_multi_ngrams(chars, orders)
+    local ngrams = {}
+    for _, n in ipairs(orders) do
+        local set = get_ngrams_of_order(chars, n)
+        for g in pairs(set) do
+            ngrams[g] = true
+        end
+    end
+    return ngrams
+end
 
-    local group_ngrams = get_ngrams(g_chars, n)
-    local quest_ngrams = get_ngrams(q_chars, n)
+----------------------------------------------------------------------
+-- Build category → n-gram-set
+-- CRITICAL: n-grams are generated PER TAG, then unioned.
+-- No cross-tag grams are ever created.
+----------------------------------------------------------------------
+local function BuildCategoryNgramSets(sourceTags, langKey, orders)
+    local categorySets = {}
 
+    for category, tags in pairs(sourceTags) do
+        local catNgrams = {}
+        for tag, _ in pairs(tags) do
+            local norm = NormalizeForNgrams(langKey, tag)
+            if norm and norm ~= "" then
+                local chars = string_to_chars(norm)
+                local tagNgrams = get_multi_ngrams(chars, orders)
+                for g in pairs(tagNgrams) do
+                    catNgrams[g] = true
+                end
+            end
+        end
+        categorySets[category] = catNgrams
+    end
+
+    return categorySets
+end
+
+----------------------------------------------------------------------
+-- Coverage score = |category ∩ quest| / |category|
+----------------------------------------------------------------------
+local function score_coverage(categoryNgrams, questNgrams)
     local intersection = 0
     local total = 0
 
-    for gram in pairs(group_ngrams) do
+    for gram in pairs(categoryNgrams) do
         total = total + 1
-        if quest_ngrams[gram] then
+        if questNgrams[gram] then
             intersection = intersection + 1
         end
     end
 
-    if total == 0 then
-        return 0
-    end
+    if total == 0 then return 0 end
     return intersection / total
 end
 
--- Main entry point
--- quest_text   = the long text to search in
--- word_groups  = { [category] = "tag1 tag2 tag3 ...", ... }
--- lang         = language code ("ru", "zh", "en", "jp" …)
--- returns best category name and its score, or nil, 0
-local function FindMatchingGroup(quest_text, word_groups, lang)
+----------------------------------------------------------------------
+-- Main matcher
+----------------------------------------------------------------------
+local function FindMatchingGroup(quest_text, sourceTags, langKey)
     if not quest_text or quest_text == "" then
         return nil, 0
     end
 
-    local n = NGRAM_SIZE[lang] or DEFAULT_NGRAM
+    local orders = NGRAM_ORDERS[langKey] or DEFAULT_NGRAM_ORDERS
+
+    -- Build per-category n-gram sets (no cross-tag grams)
+    local categorySets = BuildCategoryNgramSets(sourceTags, langKey, orders)
+
+    d("[" .. ADDON_NAME .. "] Quest text: " .. quest_text)
+    -- Quest n-grams (once)
+    local normalized_quest = NormalizeForNgrams(langKey, quest_text)
+    d("[" .. ADDON_NAME .. "] Normalized quest: " .. normalized_quest)
+
+    -- LocalDebugTools.ShowDebug(normalized_quest)
+
+    for category, tags in pairs(sourceTags) do
+        local tags_string_raw = ""
+        local tags_string = ""
+        for tag, _ in pairs(tags) do
+            tags_string_raw = tags_string_raw .. " " .. tag
+            local norm = NormalizeForNgrams(langKey, tag)
+            if norm and norm ~= "" then
+                tags_string = tags_string .. " " .. norm
+            end
+        end
+        d("[" .. ADDON_NAME .. "] Category " .. category .. ": " .. tags_string_raw)
+        d("[" .. ADDON_NAME .. "] Category " .. category .. ": " .. tags_string)
+    end
+
+    local quest_chars = string_to_chars(normalized_quest)
+    local questNgrams = get_multi_ngrams(quest_chars, orders)
+
     local best_group_id = nil
     local max_score = -1
 
-    for group_id, group_string in pairs(word_groups) do
-        local score = score_group_match(group_string, quest_text, n)
-        d(string.format("DEBUG: %s: %.2f", group_id, score))
+    for group_id, catNgrams in pairs(categorySets) do
+        local score = score_coverage(catNgrams, questNgrams)
+        ddebug("DEBUG ngram: %s → %.3f  (grams=%d)", tostring(group_id), score, CountEntries(catNgrams))
         if score > max_score then
             max_score = score
             best_group_id = group_id
         end
     end
 
-    -- Soft floor against pure noise (safe because exactly one real match is guaranteed)
-    if max_score >= 0.20 then
+    local tableJoin = table_concat(sourceTags[best_group_id], ", ")
+
+    d("[" ..
+    ADDON_NAME ..
+    "] Best group: " .. best_group_id .. ", score: " .. string_format("%.3f", max_score) .. ", tags: " .. tableJoin)
+
+    if max_score >= MATCH_SCORE_FLOOR then
         return best_group_id, max_score
     end
 
     return nil, 0
 end
 
--- Convert source[category][tag] = true
--- into  word_groups[category] = "tag1 tag2 tag3 ..."
-local function PrepareWordGroups(source)
-    local word_groups = {}
-
-    for category, tags in pairs(source) do
-        local parts = {}
-        for tag, _ in pairs(tags) do -- _ is always true
-            table.insert(parts, tag)
-        end
-        -- Join with a space (harmless for CJK, useful for Latin/Cyrillic)
-        word_groups[category] = table.concat(parts, " ")
-    end
-
-    return word_groups
-end
-
--- Find the best matching group for the given quest
+----------------------------------------------------------------------
+-- Public entry point
+----------------------------------------------------------------------
 local function FindBestGroup(questText, sourceTags)
-    local currentLanguage = GetCVar("Language.2")
-    if NGRAM_SIZE[currentLanguage] == nil then
-        d("[" .. ADDON_NAME .. "] Language not found.")
-        return nil, 0
+    local rawLang = GetCVar("Language.2")
+    local langKey = NormalizeLanguageKey(rawLang)
+
+    if not NGRAM_ORDERS[langKey] then
+        ddebug("[%s] Unsupported language '%s' – falling back to default orders",
+            ADDON_NAME, tostring(rawLang))
+        langKey = "en"
+    else
+        ddebug("[%s] Language=%s  n-gram orders=%s",
+            ADDON_NAME, langKey,
+            table_concat(NGRAM_ORDERS[langKey], "+"))
     end
-    d("[" .. ADDON_NAME .. "] Language key found! N-Gram size is: " .. NGRAM_SIZE[currentLanguage])
-    local wordGroups = PrepareWordGroups(sourceTags)
-    return FindMatchingGroup(questText, wordGroups, currentLanguage)
+
+    return FindMatchingGroup(questText, sourceTags, langKey)
 end
 
+----------------------------------------------------------------------
 -- Start (or refresh) tracking for a quest
+----------------------------------------------------------------------
 local function ActivateQuestTracking(questId, journalIndex)
     ACTIVE_QUESTS_ID[questId] = true
 
+    LocalDebugTools.PrintQuestDebugInfo(journalIndex)
+
     if questId == QUEST_NAME_ID["The Covetous Countess"] then
-        local _, _, activeStepText = GetJournalQuestInfo(journalIndex)
-        local best_group_id, max_score = FindBestGroup(activeStepText, COUNTESS_TAGS)
+        local questText = ""
+
+        -- bad description
+        -- local _, _, activeStepText = GetJournalQuestInfo(journalIndex)
+        -- questText = activeStepText
+
+        local numSteps = GetJournalQuestNumSteps(journalIndex)
+        d("-- Steps: " .. tostring(numSteps) .. " --")
+        for stepIndex = 1, numSteps do
+            local stepText, _, _, _, numConditions =
+                GetJournalQuestStepInfo(journalIndex, stepIndex)
+            if numConditions > 0 then
+                local conditionIndex = 1
+                local conditionText =
+                    GetJournalQuestConditionInfo(journalIndex, stepIndex, conditionIndex)
+                questText = questText .. " " .. conditionText
+            end
+        end
+
+        d("questText: " .. questText)
+
+        local best_group_id, max_score = FindBestGroup(questText, COUNTESS_TAGS)
 
         if best_group_id then
-            d("[" .. ADDON_NAME .. "] Found a match for this quest: " .. best_group_id .. ", score: " .. max_score)
+            d("[" .. ADDON_NAME .. "] Found a match for this quest: " .. best_group_id .. ", score: " .. string_format("%.3f", max_score))
             ACTIVE_QUESTS_TAGS[questId] = COUNTESS_TAGS[best_group_id]
         elseif not ACTIVE_QUESTS_TAGS[questId] then
             d("[" .. ADDON_NAME .. "] Could not find a matching group for this quest.")
@@ -763,6 +980,12 @@ local function OnQuestOffered(eventCode)
         local interaction = SYSTEMS:GetObjectBasedOnCurrentScene(ZO_INTERACTION_SYSTEM_NAME)
         if interaction then interaction:CloseChatter() end
     end
+
+    -- local _, response = GetOfferedQuestInfo()
+    -- local name = GetUnitName("interact") or "unknown"
+    -- local message = name .. "\n" .. response
+    -- LocalDebugTools.ShowDebug(message)
+
 end
 
 local function RegisterQuestEvents()
