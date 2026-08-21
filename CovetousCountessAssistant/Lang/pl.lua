@@ -23,6 +23,10 @@ local strings = {
         = "Automatycznie zamyka oferty Tablicy Wskazówek, które nie dotyczą Chciwej Hrabiny.",
     SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_WARNING
         = "To automatycznie zamknie dialogi niezwiązane z Hrabiną.",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_ON
+        = "Auto-pomijanie Tablicy Wskazówek: WŁ",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_OFF
+        = "Auto-pomijanie Tablicy Wskazówek: WYŁ",
 }
 
 for stringId, stringValue in pairs(strings) do

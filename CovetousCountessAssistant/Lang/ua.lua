@@ -23,6 +23,10 @@ local strings = {
         = "Автоматично закривати пропозиції Дошки підказок, які не стосуються Жадібної графині.",
     SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_WARNING
         = "Це автоматично закриє діалоги, що не стосуються графині.",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_ON
+        = "Авто-пропуск Дошки підказок: УВІМК",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_OFF
+        = "Авто-пропуск Дошки підказок: ВИМК",
 }
 
 for stringId, stringValue in pairs(strings) do

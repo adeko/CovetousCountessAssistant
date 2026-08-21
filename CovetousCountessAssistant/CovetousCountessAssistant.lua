@@ -4,11 +4,13 @@ local ADDON_AUTHOR  = "@AlexD"
 local ADDON_VERSION = "__BUILD_VERSION__"
 local ADDON_WEBSITE = "https://www.esoui.com/downloads/info4778-CovetousCountessAssistant.html"
 local SV_VERSION    = 1
+local LANGUAGE_CVAR = "Language.2"
 
 local SLASH_TRACK_SETTINGS = "/ccatracksettings" -- opens addon settings
+local SLASH_TRACK_STATUS   = "/ccatrackstatus"   -- show addon status
 local SLASH_TRACK_COUNTESS = "/ccatrackcountess" -- toggle Covetous Countess tracking
 local SLASH_TRACK_CROW     = "/ccatrackcrow"     -- toggle Bursar of Tributes tracking
-local SLASH_TRACK_STATUS   = "/ccatrackstatus"   -- show addon status
+local SLASH_TRACK_AUTOSKIP = "/ccatrackautoskip" -- toggle Tip Board auto-skip
 
 local CCA = {}
 
@@ -253,6 +255,10 @@ local function CacheLocalizedStrings()
         = GetString(SI_COVETOUSCOUNTESSASSISTANT_MSG_CROW_ON)
     STRINGS.MSG_CROW_OFF 
         = GetString(SI_COVETOUSCOUNTESSASSISTANT_MSG_CROW_OFF)
+    STRINGS.MSG_AUTOSKIP_ON
+        = GetString(SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_ON)
+    STRINGS.MSG_AUTOSKIP_OFF
+        = GetString(SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_OFF)
 end
 
 ----------------------------------------------------------------------
@@ -550,20 +556,20 @@ local table_concat         = table.concat
 
 -- Language → preferred n-gram orders
 local NGRAM_ORDERS         = {
-    zh = { 1, 2 }, -- Chinese
-    jp = { 1, 2 }, -- Japanese
-    kr = { 1, 2 }, -- Korean
-    th = { 1, 2 }, -- Thai
+    -- zh = { 1, 2 }, -- Chinese
+    -- jp = { 1, 2 }, -- Japanese
+    -- kr = { 1, 2 }, -- Korean
+    -- th = { 1, 2 }, -- Thai
     de = { 2, 3 },
     en = { 2, 3 },
     es = { 2, 3 },
     fr = { 2, 3 },
     ru = { 2, 3 },
-    br = { 2, 3 },
-    it = { 2, 3 },
-    pl = { 2, 3 },
-    tr = { 2, 3 },
-    ua = { 2, 3 },
+    -- br = { 2, 3 },
+    -- it = { 2, 3 },
+    -- pl = { 2, 3 },
+    -- tr = { 2, 3 },
+    -- ua = { 2, 3 },
 }
 
 local DEFAULT_NGRAM_ORDERS = { 2, 3 }
@@ -852,7 +858,7 @@ end
 -- Public entry point
 ----------------------------------------------------------------------
 local function FindBestGroup(questText, sourceTags)
-    local rawLang = GetCVar("Language.2")
+    local rawLang = GetCVar(LANGUAGE_CVAR)
     local langKey = NormalizeLanguageKey(rawLang)
 
     if DEBUG then
@@ -874,14 +880,12 @@ end
 -- Start (or refresh) tracking for a quest
 ----------------------------------------------------------------------
 
--- Temporarily disabled for CJK (zh/jp/kr) and Thai (th).
+-- Temporarily disabled some languages.
 -- The n-gram tables already contain orders for these languages, but the
 -- matcher has not yet been fully validated / tuned against real quest text
 -- in those locales.
 local function IsLanguageSupported()
-    local rawLang = GetCVar("Language.2")
-    local langKey = NormalizeLanguageKey(rawLang)
-    return langKey ~= "zh" and langKey ~= "jp" and langKey ~= "kr" and langKey ~= "th"
+    return NGRAM_ORDERS[NormalizeLanguageKey(GetCVar(LANGUAGE_CVAR))] ~= nil
 end
 
 local function ActivateQuestTracking(questId, journalIndex)
@@ -1044,6 +1048,17 @@ local function ToggleTrackCrow()
     end
 end
 
+local function ToggleAutoSkipTipBoard()
+    CCA.SV.autoSkipTipBoard = not CCA.SV.autoSkipTipBoard
+    local msg = CCA.SV.autoSkipTipBoard and STRINGS.MSG_AUTOSKIP_ON or STRINGS.MSG_AUTOSKIP_OFF
+    if msg and msg ~= "" then
+        d("[" .. ADDON_TITLE .. "] " .. msg)
+    else
+        d(string.format("[%s] Tip Board auto-skip: %s",
+            ADDON_TITLE, CCA.SV.autoSkipTipBoard and "ON" or "OFF"))
+    end
+end
+
 local function ShowTrackingStatus()
     local sv = CCA.SV
 
@@ -1055,8 +1070,9 @@ local function ShowTrackingStatus()
 
     local countess = getStatus(sv.trackCountess, STRINGS.MSG_COUNTESS_ON, STRINGS.MSG_COUNTESS_OFF, "Countess")
     local crow = getStatus(sv.trackCrow, STRINGS.MSG_CROW_ON, STRINGS.MSG_CROW_OFF, "Bursar of Tributes")
+    local autoskip = getStatus(sv.autoSkipTipBoard, STRINGS.MSG_AUTOSKIP_ON, STRINGS.MSG_AUTOSKIP_OFF, "Tip Board auto-skip")
 
-    d(string.format("[%s]\n%s\n%s", ADDON_TITLE, countess, crow))
+    d(string.format("[%s]\n%s\n%s\n%s", ADDON_TITLE, countess, crow, autoskip))
 end
 
 ----------------------------------------------------------------------
@@ -1085,6 +1101,7 @@ local function OnLoaded(_, name)
     SLASH_COMMANDS[SLASH_TRACK_COUNTESS] = ToggleTrackCountess
     SLASH_COMMANDS[SLASH_TRACK_CROW]     = ToggleTrackCrow
     SLASH_COMMANDS[SLASH_TRACK_STATUS]   = ShowTrackingStatus
+    SLASH_COMMANDS[SLASH_TRACK_AUTOSKIP] = ToggleAutoSkipTipBoard
 end
 
 EM:RegisterForEvent(ADDON_NAME, EVENT_ADD_ON_LOADED, OnLoaded)

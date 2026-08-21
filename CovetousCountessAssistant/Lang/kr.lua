@@ -23,6 +23,10 @@ local strings = {
         = "탐욕스러운 백작부인이 아닌 정보 게시판 제안을 자동으로 닫습니다.",
     SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_WARNING
         = "백작부인이 아닌 대화가 자동으로 닫힙니다.",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_ON
+        = "정보 게시판 자동 건너뛰기: 켜짐",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_OFF
+        = "정보 게시판 자동 건너뛰기: 꺼짐",
 }
 
 for stringId, stringValue in pairs(strings) do

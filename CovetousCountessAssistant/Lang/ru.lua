@@ -23,6 +23,10 @@ local strings = {
         = "Автоматически закрывать предложения Доски подсказок, не относящиеся к Алчной графине.",
     SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_WARNING
         = "Это автоматически закроет диалоги, не связанные с графиней.",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_ON
+        = "Авто-пропуск Доски подсказок: ВКЛ",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_OFF
+        = "Авто-пропуск Доски подсказок: ВЫКЛ",
 }
 
 for stringId, stringValue in pairs(strings) do

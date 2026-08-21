@@ -23,6 +23,10 @@ local strings = {
         = "Fermer automatiquement les offres du Tableau des indices qui ne concernent pas la Comtesse Avide.",
     SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_WARNING
         = "Cela fermera automatiquement les dialogues autres que ceux de la Comtesse.",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_ON
+        = "Ignorer Tableau des indices : ACTIVÉ",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_OFF
+        = "Ignorer Tableau des indices : DÉSACTIVÉ",
 }
 
 for stringId, stringValue in pairs(strings) do

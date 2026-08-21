@@ -23,6 +23,10 @@ local strings = {
         = "ปิดข้อเสนอกระดานเคล็ดลับที่ไม่ใช่เคาน์เตสผู้โลภโดยอัตโนมัติ",
     SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_WARNING
         = "การดำเนินการนี้จะปิดบทสนทนาที่ไม่ใช่เคาน์เตสโดยอัตโนมัติ",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_ON
+        = "ข้ามกระดานเคล็ดลับอัตโนมัติ: เปิด",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_OFF
+        = "ข้ามกระดานเคล็ดลับอัตโนมัติ: ปิด",
 }
 
 for stringId, stringValue in pairs(strings) do

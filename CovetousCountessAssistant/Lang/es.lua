@@ -23,6 +23,10 @@ local strings = {
         = "Cerrar automáticamente las ofertas del Tablón de Consejos que no sean la Condesa Codiciosa.",
     SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_WARNING
         = "Esto cerrará automáticamente los diálogos que no sean de la Condesa.",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_ON
+        = "Omisión Tablón de Consejos: ACTIVADA",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_OFF
+        = "Omisión Tablón de Consejos: DESACTIVADA",
 }
 
 for stringId, stringValue in pairs(strings) do

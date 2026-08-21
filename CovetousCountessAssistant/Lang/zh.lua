@@ -23,6 +23,10 @@ local strings = {
         = "自动关闭非贪婪女伯爵的提示板报价。",
     SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_WARNING
         = "这将自动关闭非女伯爵的对话。",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_ON
+        = "提示板自动跳过：开",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_OFF
+        = "提示板自动跳过：关",
 }
 
 for stringId, stringValue in pairs(strings) do

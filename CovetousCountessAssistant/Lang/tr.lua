@@ -23,6 +23,10 @@ local strings = {
         = "Açgözlü Kontes olmayan İpucu Panosu tekliflerini otomatik olarak kapatır.",
     SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_WARNING
         = "Bu, Kontes olmayan diyalogları otomatik olarak kapatacaktır.",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_ON
+        = "İpucu Panosu otomatik atlama: AÇIK",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_OFF
+        = "İpucu Panosu otomatik atlama: KAPALI",
 }
 
 for stringId, stringValue in pairs(strings) do

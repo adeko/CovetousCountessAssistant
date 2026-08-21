@@ -23,6 +23,10 @@ local strings = {
         = "貪欲な伯爵夫人以外の情報掲示板のオファーを自動的に閉じます。",
     SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_WARNING
         = "伯爵夫人以外の会話が自動的に閉じられます。",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_ON
+        = "情報掲示板の自動スキップ：オン",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_OFF
+        = "情報掲示板の自動スキップ：オフ",
 }
 
 for stringId, stringValue in pairs(strings) do

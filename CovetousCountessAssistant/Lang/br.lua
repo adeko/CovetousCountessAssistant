@@ -23,6 +23,10 @@ local strings = {
         = "Fecha automaticamente as ofertas do Quadro de Dicas que não sejam da Condessa Cobiçosa.",
     SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_WARNING
         = "Isso fechará automaticamente os diálogos que não forem da Condessa.",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_ON
+        = "Ignorar Quadro de Dicas: LIGADO",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_OFF
+        = "Ignorar Quadro de Dicas: DESLIGADO",
 }
 
 for stringId, stringValue in pairs(strings) do

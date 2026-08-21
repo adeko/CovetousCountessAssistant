@@ -23,6 +23,10 @@ local strings = {
         = "Automatically close Tip Board offers that are not The Covetous Countess.",
     SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_WARNING
         = "This will automatically close non-Countess dialogue.",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_ON
+        = "Tip Board auto-skip: ON",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_OFF
+        = "Tip Board auto-skip: OFF",
 }
 
 for stringId, stringValue in pairs(strings) do

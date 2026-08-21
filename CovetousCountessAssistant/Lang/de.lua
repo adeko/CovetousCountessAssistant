@@ -23,6 +23,10 @@ local strings = {
         = "Schließt automatisch Pinnwand-Angebote, die nicht die Gierige Gräfin betreffen.",
     SI_COVETOUSCOUNTESSASSISTANT_OPTION_AUTOSKIP_TIPBOARD_WARNING
         = "Dies schließt automatisch Dialoge, die nicht die Gräfin betreffen.",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_ON
+        = "Pinnwand Auto-Überspringen: AN",
+    SI_COVETOUSCOUNTESSASSISTANT_MSG_AUTOSKIP_OFF
+        = "Pinnwand Auto-Überspringen: AUS",
 }
 
 for stringId, stringValue in pairs(strings) do
