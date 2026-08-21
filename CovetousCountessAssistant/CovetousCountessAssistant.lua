@@ -12,6 +12,22 @@ local SLASH_TRACK_STATUS   = "/ccatrackstatus"   -- show addon status
 
 local CCA = {}
 
+-- debugging
+local DEBUG = false
+
+local function ddebug(...)
+    if not DEBUG then return end
+
+    local n = select("#", ...)
+    if n == 0 then
+        return
+    elseif n == 1 then
+        d(...)                   -- just print the single value
+    else
+        d(string.format(...)) -- first arg = format string, rest = values
+    end
+end
+
 -- Cached ESO globals / functions
 local EM                            = EVENT_MANAGER
 local GetItemLink                   = GetItemLink
@@ -552,16 +568,28 @@ local NGRAM_ORDERS         = {
 }
 
 local DEFAULT_NGRAM_ORDERS = { 2, 3 }
-local MATCH_SCORE_FLOOR    = 0.10
 
--- Debug flag – set true only while testing
-local DEBUG_NGRAM          = true
+-- Per-order gram weight: higher-order grams are more specific matches,
+-- so they count for more. unigram = 1, bigram = 2, trigram = 3 ...
+-- Tune freely; falls back to `n` itself for any order not listed here.
+local NGRAM_ORDER_WEIGHT   = { [1] = 1, [2] = 2, [3] = 3 }
 
-local function ddebug(...)
-    if DEBUG_NGRAM then
-        d(string_format(...))
-    end
-end
+-- OPTIONAL SWITCH ------------------------------------------------------
+-- false (default): score = weighted_intersection / weighted_total
+--   Plain coverage fraction, bounded [0,1]. Simple, but a category with
+--   many tags (many grams) needs almost all of them to match to score
+--   high — long tag lists get penalized relative to short ones.
+-- true: score = weighted_intersection / log(1 + weighted_total)
+--   Sub-linear denominator, so absolute overlap matters more than exact
+--   fraction covered — long categories aren't punished just for being
+--   long. Score is NOT bounded to [0,1] anymore, so it needs its own
+--   floor constant (MATCH_SCORE_FLOOR_LOG below) and some retuning by
+--   watching the debug output for your real tag lists.
+--------------------------------------------------------------------------
+local USE_LOG_NORMALIZED_SCORE = true
+
+local MATCH_SCORE_FLOOR      = 0.10  -- floor for the plain-fraction score
+local MATCH_SCORE_FLOOR_LOG  = 1.50  -- floor for the log-normalized score (starting guess, retune)
 
 ----------------------------------------------------------------------
 -- Language key normalization
@@ -614,51 +642,11 @@ end
 --   - lowercase (useful for Latin; harmless for CJK)
 --   - trim + collapse whitespace
 --   - strip ONLY pure ASCII control + punctuation (never touch 0x80+)
---   - strip common CJK punctuation (character-safe table)
+--   - strip common CJK punctuation
 --   - for CJK: remove remaining spaces → continuous character stream
 -- NO half-width / full-width / dakuten rewriting.
 -- NEVER use %c or %p – they are locale-dependent and corrupt UTF-8.
 ----------------------------------------------------------------------
-local CJK_PUNCT = {
-    ["、"] = true,
-    ["。"] = true,
-    ["，"] = true,
-    ["．"] = true,
-    ["・"] = true,
-    ["："] = true,
-    ["；"] = true,
-    ["！"] = true,
-    ["？"] = true,
-    ["「"] = true,
-    ["」"] = true,
-    ["『"] = true,
-    ["』"] = true,
-    ["（"] = true,
-    ["）"] = true,
-    ["【"] = true,
-    ["】"] = true,
-    ["［"] = true,
-    ["］"] = true,
-    ["｛"] = true,
-    ["｝"] = true,
-    ["〈"] = true,
-    ["〉"] = true,
-    ["《"] = true,
-    ["》"] = true,
-    ["〔"] = true,
-    ["〕"] = true,
-    ["…"] = true,
-    ["—"] = true,
-    ["～"] = true,
-    ["￥"] = true,
-    ["゛"] = true,
-    ["゜"] = true,
-    ["｡"] = true,
-    ["｢"] = true,
-    ["｣"] = true,
-    ["､"] = true,
-    ["･"] = true,
-}
 
 local function NormalizeForNgrams(langKey, text)
     if not text then return "" end
@@ -671,26 +659,20 @@ local function NormalizeForNgrams(langKey, text)
     s = string_gsub(s, "%s+$", "")
     s = string_gsub(s, "%s+", " ")
 
-    -- Strip ONLY pure ASCII control (0x00-0x1F, 0x7F)
+    -- Strip ONLY pure ASCII control (0x01-0x1F, 0x7F)
     -- Explicit byte ranges – never use %c (locale-dependent)
-    s = string_gsub(s, "[\0-\31\127]", "")
+    -- NOTE: range must start at \1, not \0 — a literal NUL as a class
+    -- range boundary is a MALFORMED PATTERN in Lua 5.1's gsub and throws
+    -- "malformed pattern (missing ']')" on every single call, regardless
+    -- of input. Game text won't contain real NULs anyway.
+    s = string_gsub(s, "[\1-\31\127]", " ") -- removes controls
 
     -- Strip ONLY pure ASCII punctuation (explicit ranges, never %p)
     -- Ranges: !-/  :@  [-`  {-~
     s = string_gsub(s, "[!-/:-@[-`{-~]", "")
 
-    -- Strip CJK / full-width punctuation character-by-character (safe)
-    do
-        local chars = string_to_chars(s)
-        local out = {}
-        for i = 1, #chars do
-            local c = chars[i]
-            if not CJK_PUNCT[c] then
-                table_insert(out, c)
-            end
-        end
-        s = table_concat(out)
-    end
+    -- Strip punctuation common to CJK 
+    s = string_gsub(s, "[、。，！？「」]", "")
 
     -- Continuous character stream for CJK languages
     if langKey == "zh" or langKey == "jp" or langKey == "kr" or langKey == "th" then
@@ -739,47 +721,78 @@ local function get_multi_ngrams(chars, orders)
 end
 
 ----------------------------------------------------------------------
--- Build category → n-gram-set
--- CRITICAL: n-grams are generated PER TAG, then unioned.
--- No cross-tag grams are ever created.
+-- Build category → { [order] = n-gram-set }
+-- CRITICAL: n-grams are generated PER TAG, then unioned per order.
+-- No cross-tag grams are ever created. Sets are kept SEPARATE per order
+-- (not merged together) so the scorer can apply a per-order weight.
 ----------------------------------------------------------------------
-local function BuildCategoryNgramSets(sourceTags, langKey, orders)
+local function BuildCategoryNgramSetsByOrder(sourceTags, langKey, orders)
     local categorySets = {}
 
     for category, tags in pairs(sourceTags) do
-        local catNgrams = {}
+        local catByOrder = {}
+        for _, n in ipairs(orders) do
+            catByOrder[n] = {}
+        end
+
         for tag, _ in pairs(tags) do
             local norm = NormalizeForNgrams(langKey, tag)
             if norm and norm ~= "" then
                 local chars = string_to_chars(norm)
-                local tagNgrams = get_multi_ngrams(chars, orders)
-                for g in pairs(tagNgrams) do
-                    catNgrams[g] = true
+                for _, n in ipairs(orders) do
+                    local tagNgrams = get_ngrams_of_order(chars, n)
+                    for g in pairs(tagNgrams) do
+                        catByOrder[n][g] = true
+                    end
                 end
             end
         end
-        categorySets[category] = catNgrams
+
+        categorySets[category] = catByOrder
     end
 
     return categorySets
 end
 
 ----------------------------------------------------------------------
--- Coverage score = |category ∩ quest| / |category|
+-- Weighted coverage score.
+-- Sums weight (per NGRAM_ORDER_WEIGHT) instead of raw gram counts, so
+-- bigram matches (more specific) count more than unigram matches.
+--
+--   USE_LOG_NORMALIZED_SCORE = false:
+--       score = Σ weight(matched)     / Σ weight(category)
+--   USE_LOG_NORMALIZED_SCORE = true:
+--       score = Σ weight(matched)     / log(1 + Σ weight(category))
+--
+-- Returns score, weighted_intersection, weighted_total (last two are
+-- handy for debug/tuning output).
 ----------------------------------------------------------------------
-local function score_coverage(categoryNgrams, questNgrams)
-    local intersection = 0
-    local total = 0
+local function score_coverage_weighted(catByOrder, questByOrder, orders)
+    local weighted_intersection = 0
+    local weighted_total = 0
 
-    for gram in pairs(categoryNgrams) do
-        total = total + 1
-        if questNgrams[gram] then
-            intersection = intersection + 1
+    for _, n in ipairs(orders) do
+        local weight = NGRAM_ORDER_WEIGHT[n] or n
+        local catSet = catByOrder[n] or {}
+        local qSet = questByOrder[n] or {}
+
+        for gram in pairs(catSet) do
+            weighted_total = weighted_total + weight
+            if qSet[gram] then
+                weighted_intersection = weighted_intersection + weight
+            end
         end
     end
 
-    if total == 0 then return 0 end
-    return intersection / total
+    if weighted_total == 0 then
+        return 0, 0, 0
+    end
+
+    if USE_LOG_NORMALIZED_SCORE then
+        return weighted_intersection / math.log(1 + weighted_total), weighted_intersection, weighted_total
+    end
+
+    return weighted_intersection / weighted_total, weighted_intersection, weighted_total
 end
 
 ----------------------------------------------------------------------
@@ -792,39 +805,32 @@ local function FindMatchingGroup(quest_text, sourceTags, langKey)
 
     local orders = NGRAM_ORDERS[langKey] or DEFAULT_NGRAM_ORDERS
 
-    -- Build per-category n-gram sets (no cross-tag grams)
-    local categorySets = BuildCategoryNgramSets(sourceTags, langKey, orders)
+    -- Build per-category n-gram sets, kept separate per order (no cross-tag grams)
+    local categorySets = BuildCategoryNgramSetsByOrder(sourceTags, langKey, orders)
 
-    d("[" .. ADDON_NAME .. "] Quest text: " .. quest_text)
     -- Quest n-grams (once)
     local normalized_quest = NormalizeForNgrams(langKey, quest_text)
-    d("[" .. ADDON_NAME .. "] Normalized quest: " .. normalized_quest)
 
-    -- LocalDebugTools.ShowDebug(normalized_quest)
-
-    for category, tags in pairs(sourceTags) do
-        local tags_string_raw = ""
-        local tags_string = ""
-        for tag, _ in pairs(tags) do
-            tags_string_raw = tags_string_raw .. " " .. tag
-            local norm = NormalizeForNgrams(langKey, tag)
-            if norm and norm ~= "" then
-                tags_string = tags_string .. " " .. norm
-            end
-        end
-        d("[" .. ADDON_NAME .. "] Category " .. category .. ": " .. tags_string_raw)
-        d("[" .. ADDON_NAME .. "] Category " .. category .. ": " .. tags_string)
+    if DEBUG then
+        ddebug("Original text: " .. quest_text)
+        ddebug("Normalized text: " .. normalized_quest)
     end
 
     local quest_chars = string_to_chars(normalized_quest)
-    local questNgrams = get_multi_ngrams(quest_chars, orders)
+    local questNgramsByOrder = {}
+    for _, n in ipairs(orders) do
+        questNgramsByOrder[n] = get_ngrams_of_order(quest_chars, n)
+    end
 
     local best_group_id = nil
     local max_score = -1
+    local floor = USE_LOG_NORMALIZED_SCORE and MATCH_SCORE_FLOOR_LOG or MATCH_SCORE_FLOOR
 
-    for group_id, catNgrams in pairs(categorySets) do
-        local score = score_coverage(catNgrams, questNgrams)
-        ddebug("DEBUG ngram: %s → %.3f  (grams=%d)", tostring(group_id), score, CountEntries(catNgrams))
+    for group_id, catByOrder in pairs(categorySets) do
+        local score, matched_w, total_w = score_coverage_weighted(catByOrder, questNgramsByOrder, orders)
+        if DEBUG then
+            ddebug("DEBUG ngram: %s → %.3f  (matched_w=%d / total_w=%d)", tostring(group_id), score, matched_w, total_w)
+        end
         if score > max_score then
             max_score = score
             best_group_id = group_id
@@ -833,11 +839,12 @@ local function FindMatchingGroup(quest_text, sourceTags, langKey)
 
     local tableJoin = table_concat(sourceTags[best_group_id], ", ")
 
-    d("[" ..
-    ADDON_NAME ..
-    "] Best group: " .. best_group_id .. ", score: " .. string_format("%.3f", max_score) .. ", tags: " .. tableJoin)
+    if DEBUG then
+        local tableJoin = table_concat(sourceTags[best_group_id], ", ")
+        ddebug("Best group: " .. best_group_id .. ", score: " .. string_format("%.3f", max_score) .. ", tags: " .. tableJoin)
+    end
 
-    if max_score >= MATCH_SCORE_FLOOR then
+    if max_score >= floor then
         return best_group_id, max_score
     end
 
@@ -851,14 +858,16 @@ local function FindBestGroup(questText, sourceTags)
     local rawLang = GetCVar("Language.2")
     local langKey = NormalizeLanguageKey(rawLang)
 
-    if not NGRAM_ORDERS[langKey] then
-        ddebug("[%s] Unsupported language '%s' – falling back to default orders",
-            ADDON_NAME, tostring(rawLang))
-        langKey = "en"
-    else
-        ddebug("[%s] Language=%s  n-gram orders=%s",
-            ADDON_NAME, langKey,
-            table_concat(NGRAM_ORDERS[langKey], "+"))
+    if DEBUG then
+        if not NGRAM_ORDERS[langKey] then
+            ddebug("[%s] Unsupported language '%s' - falling back to default orders",
+                ADDON_NAME, tostring(rawLang))
+            langKey = "en"
+        else
+            ddebug("[%s] Language=%s  n-gram orders=%s",
+                ADDON_NAME, langKey,
+                table_concat(NGRAM_ORDERS[langKey], "+"))
+        end
     end
 
     return FindMatchingGroup(questText, sourceTags, langKey)
@@ -875,12 +884,7 @@ local function ActivateQuestTracking(questId, journalIndex)
     if questId == QUEST_NAME_ID["The Covetous Countess"] then
         local questText = ""
 
-        -- bad description
-        -- local _, _, activeStepText = GetJournalQuestInfo(journalIndex)
-        -- questText = activeStepText
-
         local numSteps = GetJournalQuestNumSteps(journalIndex)
-        d("-- Steps: " .. tostring(numSteps) .. " --")
         for stepIndex = 1, numSteps do
             local stepText, _, _, _, numConditions =
                 GetJournalQuestStepInfo(journalIndex, stepIndex)
@@ -892,15 +896,16 @@ local function ActivateQuestTracking(questId, journalIndex)
             end
         end
 
-        d("questText: " .. questText)
+        if DEBUG then
+            ddebug("Condition quest text: " .. questText)
+        end
 
         local best_group_id, max_score = FindBestGroup(questText, COUNTESS_TAGS)
 
         if best_group_id then
-            d("[" .. ADDON_NAME .. "] Found a match for this quest: " .. best_group_id .. ", score: " .. string_format("%.3f", max_score))
             ACTIVE_QUESTS_TAGS[questId] = COUNTESS_TAGS[best_group_id]
         elseif not ACTIVE_QUESTS_TAGS[questId] then
-            d("[" .. ADDON_NAME .. "] Could not find a matching group for this quest.")
+            -- TODO: Add a warning message?
         end
     elseif CROW_QUEST_CATEGORY[questId] then
         -- Fixed category, no fuzzy matching needed.
@@ -936,14 +941,37 @@ end
 local function OnQuestAdded(eventCode, journalIndex, questName, objectiveName)
     local questId = GetJournalQuestId(journalIndex)
     if QUEST_ID[questId] then
+        if DEBUG then
+            ddebug("[" .. ADDON_NAME .. "] OnQuestAdded: " .. questName)
+        end
         ActivateQuestTracking(questId, journalIndex)
     end
 end
 
-local function OnQuestAdvanced(eventCode, journalIndex, questName, objectiveName)
+local function OnQuestConditionCounterChanged(
+    eventCode,                                   -- number
+    journalIndex,                                -- number (luaindex)
+    questName,                                   -- string
+    conditionText,                               -- string
+    conditionType,                               -- number (QuestConditionType enum)
+    currConditionVal,                            -- number (previous value)
+    newConditionVal,                             -- number (new value)
+    conditionMax,                                -- number
+    isFailCondition,                             -- boolean
+    stepOverrideText,                            -- string
+    isPushed,                                    -- boolean
+    isComplete,                                  -- boolean
+    isConditionComplete,                         -- boolean
+    isStepHidden,                                -- boolean
+    isConditionCompleteStatusChanged,            -- boolean (added in API 100028)
+    isConditionCompletableBySiblingStatusChanged -- boolean (added in API 100028)
+)
     local questId = GetJournalQuestId(journalIndex)
     if QUEST_ID[questId] then
-        ActivateQuestTracking(questId, journalIndex)
+        -- quest condition went backwards (item dropped, etc.)
+        if newConditionVal < currConditionVal then
+            ActivateQuestTracking(questId, journalIndex)
+        end
     end
 end
 
@@ -959,40 +987,19 @@ end
 
 local function OnQuestOffered(eventCode)
     if not CCA.SV.autoSkipTipBoard then return end
-
-    -- debug
-    -- local _, response = GetOfferedQuestInfo()
-    -- local name = GetUnitName("interact") or "unknown"
-    -- local message = name .. "\n" .. response
-    -- LocalDebugTools.ShowDebug(message)
-    -- if true then return end
-
     if not IsTargetBoard() then return end
-
     local _, response = GetOfferedQuestInfo()
-
-    if COUNTESS_RESPONSES[response] then
-        d("[" .. ADDON_NAME .. "] Covetous Countess offer detected!")
-        return
-    end
-
     if SKIP_RESPONSES[response] then
         local interaction = SYSTEMS:GetObjectBasedOnCurrentScene(ZO_INTERACTION_SYSTEM_NAME)
         if interaction then interaction:CloseChatter() end
     end
-
-    -- local _, response = GetOfferedQuestInfo()
-    -- local name = GetUnitName("interact") or "unknown"
-    -- local message = name .. "\n" .. response
-    -- LocalDebugTools.ShowDebug(message)
-
 end
 
 local function RegisterQuestEvents()
     EM:RegisterForEvent(ADDON_NAME, EVENT_QUEST_ADDED, OnQuestAdded)
-    EM:RegisterForEvent(ADDON_NAME, EVENT_QUEST_ADVANCED, OnQuestAdvanced)
-    EM:RegisterForEvent(ADDON_NAME, EVENT_QUEST_OFFERED, OnQuestOffered)
+    EM:RegisterForEvent(ADDON_NAME, EVENT_QUEST_CONDITION_COUNTER_CHANGED, OnQuestConditionCounterChanged)
     EM:RegisterForEvent(ADDON_NAME, EVENT_QUEST_REMOVED, OnQuestRemoved)
+    EM:RegisterForEvent(ADDON_NAME, EVENT_QUEST_OFFERED, OnQuestOffered)
 end
 
 ----------------------------------------------------------------------
