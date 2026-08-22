@@ -16,7 +16,7 @@ local SLASH_TRACK_AUTOSKIP  = "/ccatrackautoskip"  -- toggle Tip Board auto-skip
 local CCA = {}
 
 -- debugging
-local DEBUG = true
+local DEBUG = false
 
 local function ddebug(...)
     if not DEBUG then return end
@@ -661,7 +661,7 @@ local DEFAULT_NGRAM_ORDERS = { 2, 3 }
 -- Per-order gram weight: higher-order grams are more specific matches,
 -- so they count for more. unigram = 1, bigram = 2, trigram = 3 ...
 -- Tune freely; falls back to `n` itself for any order not listed here.
-local NGRAM_ORDER_WEIGHT   = { [1] = 1, [2] = 2, [3] = 3 }
+local NGRAM_ORDER_WEIGHT   = { [1] = 1, [2] = 5, [3] = 50 }
 
 -- OPTIONAL SWITCH ------------------------------------------------------
 -- false (default): score = weighted_intersection / weighted_total
@@ -675,9 +675,9 @@ local NGRAM_ORDER_WEIGHT   = { [1] = 1, [2] = 2, [3] = 3 }
 --   floor constant (MATCH_SCORE_FLOOR_LOG below) and some retuning by
 --   watching the debug output for your real tag lists.
 --------------------------------------------------------------------------
-local USE_LOG_NORMALIZED_SCORE = true
+local USE_LOG_NORMALIZED_SCORE = false -- does not work well, will remove in the future
 
-local MATCH_SCORE_FLOOR      = 0.10  -- floor for the plain-fraction score
+local MATCH_SCORE_FLOOR      = 0.08  -- floor for the plain-fraction score
 local MATCH_SCORE_FLOOR_LOG  = 1.50  -- floor for the log-normalized score (starting guess, retune)
 
 ----------------------------------------------------------------------
@@ -905,7 +905,7 @@ end
 local categorySetCache = {}
 
 local function GetCategorySets(sourceTags, langKey, orders)
-    local cacheKey = langKey
+    local cacheKey = langKey .. ":" .. tostring(sourceTags)
     local cached = categorySetCache[cacheKey]
     if cached then return cached end
 
@@ -933,8 +933,8 @@ local function FindMatchingGroup(quest_text, sourceTags, langKey)
     if DEBUG then
         ddebug("Original text: " .. quest_text)
         ddebug("Normalized text: " .. normalized_quest)
-        DumpBytes("Original bytes", quest_text)
-        DumpBytes("Normalized bytes", normalized_quest)
+        -- DumpBytes("Original bytes", quest_text)
+        -- DumpBytes("Normalized bytes", normalized_quest)
     end
 
     local quest_chars = StringToChars(normalized_quest)
@@ -951,6 +951,10 @@ local function FindMatchingGroup(quest_text, sourceTags, langKey)
         local score, matched_w, total_w = ScoreCoverageWeighted(catByOrder, questNgramsByOrder, orders)
         if DEBUG then
             ddebug("DEBUG ngram: %s → %.3f  (matched_w=%d / total_w=%d)", tostring(group_id), score, matched_w, total_w)
+            -- print category
+            local tags = {}
+            for tag in pairs(sourceTags[group_id]) do tinsert(tags, tag) end
+            ddebug("DEBUG group: %s, tags: %s", group_id, table_concat(tags, ", "))
         end
         if score > max_score then
             max_score = score
@@ -1016,18 +1020,19 @@ local function ActivateQuestTracking(questId, journalIndex)
         local numSteps = GetJournalQuestNumSteps(journalIndex)
 
         if numSteps > 0 then
-            local stepIndex = 1
-            local stepText, _, _, _, numConditions =
-                GetJournalQuestStepInfo(journalIndex, stepIndex)
-            if numConditions > 0 then
-                local conditionIndex = 1
-                local conditionText, current, max =
-                    GetJournalQuestConditionInfo(journalIndex, stepIndex, conditionIndex)
-                if numSteps == 1 then
+            isDeliveryStep = numSteps == 1
+            for stepIndex = 1, numSteps do
+                local stepText, _, _, _, numConditions =
+                    GetJournalQuestStepInfo(journalIndex, stepIndex)
+                if isDeliveryStep then
                     questText = questText .. " " .. stepText
-                    isDeliveryStep = true
-                else
-                    questText = questText .. " " .. conditionText                    
+                else 
+                    if numConditions > 0 then
+                        local conditionIndex = 1
+                        local conditionText =
+                            GetJournalQuestConditionInfo(journalIndex, stepIndex, conditionIndex)
+                        questText = questText .. " " .. conditionText
+                    end
                 end
             end
         end
@@ -1111,8 +1116,12 @@ local function OnQuestConditionCounterChanged(
     local questId = GetJournalQuestId(journalIndex)
     if QUEST_ID[questId] then
         -- quest condition went backwards (item dropped, etc.)
-        if newConditionVal < currConditionVal then
+        if DEBUG then
             ActivateQuestTracking(questId, journalIndex)
+        else
+            if newConditionVal < currConditionVal then
+                ActivateQuestTracking(questId, journalIndex)
+            end
         end
     end
 end
