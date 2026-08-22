@@ -16,7 +16,7 @@ local SLASH_TRACK_AUTOSKIP  = "/ccatrackautoskip"  -- toggle Tip Board auto-skip
 local CCA = {}
 
 -- debugging
-local DEBUG = false
+local DEBUG = true
 
 local function ddebug(...)
     if not DEBUG then return end
@@ -81,6 +81,58 @@ local COUNTESS_DUMMY_IDS = {
         ["Utensils"]                = "64326",
         ["Dishes and Cookware"]     = "61263",
     },
+}
+
+local DELIVERY_CITIES    = {
+    ["en"]               = {
+        ["Collectibles"] = { ["Davon's Watch"] = true, },
+        ["Curiosities"]  = { ["Mournhold"] = true, },
+        ["Documents"]    = { ["Stormhold"] = true, },
+        ["Accessories"]  = { ["Windhelm"] = true, },
+        ["Kitchenware"]  = { ["Riften"] = true, },
+    },
+    ["de"]                = {
+        ["Collectibles"] = { ["Davons Wacht"] = true, },
+        ["Curiosities"]  = { ["Gramfeste"] = true, },
+        ["Documents"]    = { ["Sturmfeste"] = true, },
+        ["Accessories"]  = { ["Windhelm"] = true, },
+        ["Kitchenware"]  = { ["Riften"] = true, },
+    },
+    ["fr"]                = {
+        ["Collectibles"] = { ["Le Guet de Davon"] = true, },
+        ["Curiosities"]  = { ["Longsanglot"] = true, },
+        ["Documents"]    = { ["Fort-Tempête"] = true, },
+        ["Accessories"]  = { ["Vendeaume"] = true, },
+        ["Kitchenware"]  = { ["Faillaise"] = true, },
+    },
+    ["es"]                = {
+        ["Collectibles"] = { ["Vigilia de Davon"] = true, },
+        ["Curiosities"]  = { ["El Duelo"] = true, },
+        ["Documents"]    = { ["Fuerte de la Tormenta"] = true, },
+        ["Accessories"]  = { ["Ventalia"] = true, },
+        ["Kitchenware"]  = { ["Riften"] = true, },
+    },
+    ["ru"]                = {
+        ["Collectibles"] = { ["Дозор Давона"] = true, },
+        ["Curiosities"]  = { ["Морнхолд"] = true, },
+        ["Documents"]    = { ["Стормхолд"] = true, },
+        ["Accessories"]  = { ["Виндхельм"] = true, },
+        ["Kitchenware"]  = { ["Рифтен"] = true, },
+    },
+    ["jp"]                = {
+        ["Collectibles"] = { ["ダボンズ・ウォッチ"] = true, },
+        ["Curiosities"]  = { ["モーンホールド"] = true, },
+        ["Documents"]    = { ["ストームホールド"] = true, },
+        ["Accessories"]  = { ["ウィンドヘルム"] = true, },
+        ["Kitchenware"]  = { ["リフテン"] = true, },
+    },
+    ["zh"]                = {
+        ["Collectibles"] = { ["达望城"] = true, },
+        ["Curiosities"]  = { ["哀伤之城"] = true, },
+        ["Documents"]    = { ["风暴城"] = true, },
+        ["Accessories"]  = { ["风盔城"] = true, },
+        ["Kitchenware"]  = { ["裂谷城"] = true, },
+    }
 }
 
 --[[
@@ -956,41 +1008,38 @@ local function ActivateQuestTracking(questId, journalIndex)
 
     if questId == QUEST_NAME_ID["The Covetous Countess"] then
         local questText = ""
+        local isDeliveryStep = false
+
+        local rawLang = GetCVar(LANGUAGE_CVAR)
+        local langKey = NormalizeLanguageKey(rawLang)
 
         local numSteps = GetJournalQuestNumSteps(journalIndex)
 
-        if numSteps == 1 then
-            -- on quest items dropped, quest conditions reset
+        if numSteps > 0 then
             local stepIndex = 1
-            local _, _, _, _, numConditions =
+            local stepText, _, _, _, numConditions =
                 GetJournalQuestStepInfo(journalIndex, stepIndex)
             if numConditions > 0 then
                 local conditionIndex = 1
                 local conditionText, current, max =
-                    GetJournalQuestConditionInfo(journalIndex, stepIndex, conditionIndex) 
-                if current < max then
-                    questText = questText .. " " .. conditionText
-                end
-            end
-        else
-            -- on quest added
-            for stepIndex = 1, numSteps do
-                local stepText, _, _, _, numConditions =
-                    GetJournalQuestStepInfo(journalIndex, stepIndex)
-                if numConditions > 0 then
-                    local conditionIndex = 1
-                    local conditionText =
-                        GetJournalQuestConditionInfo(journalIndex, stepIndex, conditionIndex)
-                    questText = questText .. " " .. conditionText
+                    GetJournalQuestConditionInfo(journalIndex, stepIndex, conditionIndex)
+                if numSteps == 1 then
+                    questText = questText .. " " .. stepText
+                    isDeliveryStep = true
+                else
+                    questText = questText .. " " .. conditionText                    
                 end
             end
         end
 
         if DEBUG then
             ddebug("Condition quest text: " .. questText)
+            ddebug("IsDeliveryStep: " .. tostring(isDeliveryStep))
         end
 
-        local best_group_id, max_score = FindBestGroup(questText, COUNTESS_TAGS)
+        local sourceTags = isDeliveryStep and DELIVERY_CITIES[langKey] or COUNTESS_TAGS
+
+        local best_group_id, max_score = FindBestGroup(questText, sourceTags)
 
         if best_group_id then
             ACTIVE_QUESTS_TAGS[questId] = COUNTESS_TAGS[best_group_id]
