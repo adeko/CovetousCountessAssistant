@@ -468,9 +468,14 @@ local function BuildTagTables(source, dest, flatSet)
         for _, dummyId in pairs(items) do
             local tags = GetTreasureTags(ToItemLink(dummyId))
             if tags then
+                if #tags ~= 1 then 
+                    ddebug("[%s] unexpected tag count for dummyId %s: %d tags (tags: %s)", ADDON_NAME,
+                    tostring(dummyId), #tags, table.concat(tags, ", ")) 
+                end
                 for _, tag in ipairs(tags) do
                     dest[category][tag] = true
                     flatSet[tag] = true
+                    break -- only one tag per dummy
                 end
             end
         end
