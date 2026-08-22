@@ -515,7 +515,7 @@ end
 -- Inventory icon hooks
 ----------------------------------------------------------------------
 -- create local function to avoid globals for hooks
-local function UpdateStatusControlIcons() 
+local function UpdateStatusControlIcons()
 
     -- PreHook: inject (or strip) our icon path into additionalIcons before vanilla runs.
     ZO_PreHook("ZO_UpdateStatusControlIcons", function(inventorySlot, slotData)
