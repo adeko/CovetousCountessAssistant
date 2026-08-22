@@ -910,7 +910,7 @@ end
 local categorySetCache = {}
 
 local function GetCategorySets(sourceTags, langKey, orders)
-    local cacheKey = langKey .. ":" .. tostring(sourceTags)
+    local cacheKey = langKey .. ":" .. (sourceTags == COUNTESS_TAGS and "tags" or "cities")
     local cached = categorySetCache[cacheKey]
     if cached then return cached end
 
@@ -1122,6 +1122,7 @@ local function OnQuestConditionCounterChanged(
     if QUEST_ID[questId] then
         -- quest condition went backwards (item dropped, etc.)
         if DEBUG then
+            -- TEMP: force re-match on every condition change while testing item-by-item
             ActivateQuestTracking(questId, journalIndex)
         else
             if newConditionVal < currConditionVal then
